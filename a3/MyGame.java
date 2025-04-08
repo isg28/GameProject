@@ -50,9 +50,9 @@ public class MyGame extends VariableFrameRateGame
 	private int counter=0;
 	private double lastFrameTime, currFrameTime, elapsTime;
 
-	private GameObject dol, avatar, x, y, z, terr;
-	private ObjShape dolS, linxS, linyS, linzS, ghostS, terrS;
-	private TextureImage doltx;
+	private GameObject dol, avatar, x, y, z, terr, pig, chicken;
+	private ObjShape dolS, linxS, linyS, linzS, ghostS, terrS, borderShape, pigS, chickenS;
+	private TextureImage doltx, pigtx, chickentx;
 	private Light light1; 
 
 	private InputManager im;
@@ -118,11 +118,14 @@ public class MyGame extends VariableFrameRateGame
 	public void loadShapes()
 	{	
 		dolS = new ImportedModel("dolphinHighPoly.obj");
+		pigS = new ImportedModel("pig.obj");
+		chickenS = new ImportedModel("chicken.obj");
 		linxS = new Line(new Vector3f(0f,0f,0f), new Vector3f(10f,0f,0f));  
 		linyS = new Line(new Vector3f(0f,0f,0f), new Vector3f(0f,10f,0f));  
 		linzS = new Line(new Vector3f(0f,0f,0f), new Vector3f(0f,0f,-10f)); 
 		ghostS = new Sphere();
 		terrS = new TerrainPlane(1000);
+		hills = new TextureImage("border2.jpg");
 		
 	}
     /**
@@ -133,6 +136,8 @@ public class MyGame extends VariableFrameRateGame
 	public void loadTextures()
 	{	
 		doltx = new TextureImage("Dolphin_HighPolyUV.png");
+		pigtx = new TextureImage("pigtx.jpg");
+		chickentx = new TextureImage("chickentx.jpg");
 
 		dayOneTerrain = new TextureImage("dayOneTerrain.jpg");
 		dayTwoTerrain = new TextureImage("dayTwoTerrain.jpg");
@@ -178,6 +183,20 @@ public class MyGame extends VariableFrameRateGame
 		initialScale = (new Matrix4f().scaling(0.25f));
 		dol.setLocalTranslation(initialTranslation);
 		dol.setLocalScale(initialScale);
+
+		pig = new GameObject(GameObject.root(), pigS, pigtx);
+		initialTranslation = (new Matrix4f()).translation(2,0,0);
+		pig.setLocalTranslation(initialTranslation);
+		initialScale = (new Matrix4f().scaling(0.1f));
+		pig.setLocalTranslation(initialTranslation);
+		pig.setLocalScale(initialScale);
+
+		chicken = new GameObject(GameObject.root(), chickenS, chickentx);
+		initialTranslation = (new Matrix4f()).translation(0,0,1);
+		chicken.setLocalTranslation(initialTranslation);
+		initialScale = (new Matrix4f().scaling(0.1f));
+		chicken.setLocalTranslation(initialTranslation);
+		chicken.setLocalScale(initialScale);
         
 		x = new GameObject(GameObject.root(), linxS);
 		y = new GameObject(GameObject.root(), linyS);
@@ -191,9 +210,11 @@ public class MyGame extends VariableFrameRateGame
 		// Terrain setup
 		terr = new GameObject(GameObject.root(), terrS, dayOneTerrain);
 		Matrix4f terrTrans = new Matrix4f().translation(0f, 0f, 0f);
-		Matrix4f terrScale = new Matrix4f().scaling(20.0f, 1.0f, 20.0f);
+		Matrix4f terrScale = new Matrix4f().scaling(15.0f, 0.3f, 20.0f);
 		terr.setLocalTranslation(terrTrans);
 		terr.setLocalScale(terrScale);
+		terr.setHeightMap(hills);
+
 		terr.getRenderStates().setTiling(1);
 		terr.getRenderStates().setTileFactor(4);
 
@@ -438,15 +459,15 @@ public class MyGame extends VariableFrameRateGame
 		up = dol.getWorldUpVector();
 		right = dol.getWorldRightVector();
 	
-		String hudMessage = "Status: Safe";
+		String hudMessage = "Status: Roaming the Fields";
 		
 		im.update((float)elapsTime);
 		processNetworking((float)elapsTime);
 
 		// build and set HUD
 		String counterStr = Integer.toString(counter);
-		String dispStr1 = "Objective: Disarm all the satellites! Once close enough press: SPACE";
-		String dispStr2 = "Score = " + counterStr;
+		String dispStr1 = "Objective: Earn as much money as possible by harvesting and selling crops! Press SPACE when close enough.";
+		String dispStr2 = "Coins = " + counterStr;
 		String dispStr3 = "Surveillance Camera on Dolphin";
 		Vector3f hud1Color = new Vector3f(1,0,0);
 		Vector3f hud2Color = new Vector3f(0,0,1);
@@ -602,8 +623,22 @@ public class MyGame extends VariableFrameRateGame
 		Vector3f fwd = dol.getWorldForwardVector();
 		Vector3f loc = dol.getWorldLocation();
 		Vector3f newLocation = loc.add(fwd.mul(movementSpeed * direction * (float) elapsTime));
+	
+		// Set tight bounds near the terrain center (adjust as needed)
+		float minX = -15.0f;
+		float maxX = 15.0f;
+		float minZ = -15.0f;
+		float maxZ = 15.0f;
+	
+		if (newLocation.x() < minX || newLocation.x() > maxX || 
+			newLocation.z() < minZ || newLocation.z() > maxZ) {
+			return;
+		}
+	
 		dol.setLocalLocation(newLocation);
 	}
+	
+	
 	
     /**
      * Increments the player's score upon successfully disarming a satellite.
