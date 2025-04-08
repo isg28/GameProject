@@ -50,9 +50,9 @@ public class MyGame extends VariableFrameRateGame
 	private int counter=0;
 	private double lastFrameTime, currFrameTime, elapsTime;
 
-	private GameObject dol, avatar, x, y, z, terr, pig, chicken;
-	private ObjShape dolS, linxS, linyS, linzS, ghostS, terrS, borderShape, pigS, chickenS;
-	private TextureImage doltx, pigtx, chickentx;
+	private GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit;
+	private ObjShape dolS, linxS, linyS, linzS, ghostS, terrS, borderShape, pigS, chickenS, rabbitS;
+	private TextureImage doltx, pigtx, chickentx, rabbittx;
 	private Light light1; 
 
 	private InputManager im;
@@ -120,6 +120,7 @@ public class MyGame extends VariableFrameRateGame
 		dolS = new ImportedModel("dolphinHighPoly.obj");
 		pigS = new ImportedModel("pig.obj");
 		chickenS = new ImportedModel("chicken.obj");
+		rabbitS = new ImportedModel("rabbit.obj");
 		linxS = new Line(new Vector3f(0f,0f,0f), new Vector3f(10f,0f,0f));  
 		linyS = new Line(new Vector3f(0f,0f,0f), new Vector3f(0f,10f,0f));  
 		linzS = new Line(new Vector3f(0f,0f,0f), new Vector3f(0f,0f,-10f)); 
@@ -138,6 +139,7 @@ public class MyGame extends VariableFrameRateGame
 		doltx = new TextureImage("Dolphin_HighPolyUV.png");
 		pigtx = new TextureImage("pigtx.jpg");
 		chickentx = new TextureImage("chickentx.jpg");
+		rabbittx = new TextureImage("rabbittx.jpg");
 
 		dayOneTerrain = new TextureImage("dayOneTerrain.jpg");
 		dayTwoTerrain = new TextureImage("dayTwoTerrain.jpg");
@@ -197,6 +199,13 @@ public class MyGame extends VariableFrameRateGame
 		initialScale = (new Matrix4f().scaling(0.1f));
 		chicken.setLocalTranslation(initialTranslation);
 		chicken.setLocalScale(initialScale);
+
+		rabbit = new GameObject(GameObject.root(), rabbitS, rabbittx);
+		initialTranslation = (new Matrix4f()).translation(0,0 ,2);
+		rabbit.setLocalTranslation(initialTranslation);
+		initialScale = (new Matrix4f().scaling(0.1f));
+		rabbit.setLocalTranslation(initialTranslation);
+		rabbit.setLocalScale(initialScale);
         
 		x = new GameObject(GameObject.root(), linxS);
 		y = new GameObject(GameObject.root(), linyS);
