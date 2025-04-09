@@ -81,6 +81,7 @@ public class MyGame extends VariableFrameRateGame
 	private SkyboxManager skyboxManager;
 	private boolean shouldResetSkybox = false;
 	private TerrainManager terrainManager;
+	private Integer pendingSkyboxIndex = null;  
 
 	/**
     * Constructs the game instance and initializes the game loop.
@@ -109,6 +110,7 @@ public class MyGame extends VariableFrameRateGame
 		engine = new Engine(game);
 		game.initializeSystem();
 		game.game_loop();
+		game.initializeLights();
 	}
 	/**
 	 * Loads 3D models for key scene elements, including the player avatar and axis lines.
@@ -153,13 +155,6 @@ public class MyGame extends VariableFrameRateGame
 		//hills = new TextureImage("hills.jpg");
 		
 
-	}
-	/**
-	 * Initializes and sets up the skybox system for the game.
-	*/
-	@Override
-	public void loadSkyBoxes() {
-		skyboxManager = new SkyboxManager(engine.getSceneGraph(), terrainManager, this);
 	}
 	
 	/**
@@ -423,9 +418,19 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void update()
 	{
+		if (skyboxManager == null && terrainManager != null) {
+			skyboxManager = new SkyboxManager(engine.getSceneGraph(), terrainManager, this);
+			return; 
+		}
+	
 		if (skyboxManager != null) {
 			skyboxManager.update();
 		}
+	
+		if (pendingSkyboxIndex != null) {
+			skyboxManager.setSkyboxByIndex(pendingSkyboxIndex);
+			pendingSkyboxIndex = null;
+		}	
 		
 		// Handle terrain height adjustment
 		if (terr != null) {
@@ -888,4 +893,9 @@ public class MyGame extends VariableFrameRateGame
 	public SkyboxManager getSkyboxManager() {
 		return skyboxManager;
 	}
+
+	public void setPendingSkyboxIndex(int index) {
+		pendingSkyboxIndex = index;
+	}	
+	
 }

@@ -8,6 +8,7 @@ import org.joml.Vector3f;
 
 import a3.GhostManager;
 import a3.MyGame;
+import a3.SkyboxManager;
 import tage.networking.IGameConnection.ProtocolType;
 import tage.networking.client.GameConnectionClient;
 
@@ -124,7 +125,16 @@ public class ProtocolClient extends GameConnectionClient {
 
             case "skybox":
                 int index = Integer.parseInt(msgTokens[1]);
-                game.getSkyboxManager().setSkyboxByIndex(index); 
+                if (game.getSkyboxManager() != null) {
+                    SkyboxManager sm = game.getSkyboxManager();
+                    if (sm != null) {
+                        sm.setSkyboxByIndex(index);
+                    } else {
+                        game.setPendingSkyboxIndex(index);
+                    }
+                } else {
+                    game.setPendingSkyboxIndex(index);
+                }
             break;
 
     
