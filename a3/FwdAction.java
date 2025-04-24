@@ -46,6 +46,10 @@ public class FwdAction extends AbstractInputAction
      */
     @Override
     public void performAction(float time, Event e) {
+        if (game.getMarketMode() != MyGame.MarketMode.NONE || game.isBuyingSeeds()){
+            return;
+        }
+
         float keyValue = e.getValue();
         boolean moveForward = false;
         boolean moveBackward = false;

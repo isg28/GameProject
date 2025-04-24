@@ -43,6 +43,10 @@ public class TurnAction extends AbstractInputAction
      */
     @Override
     public void performAction(float time, Event e) {
+        if (game.getMarketMode() != MyGame.MarketMode.NONE || game.isBuyingSeeds()){
+            return;
+        }
+
         float keyValue = e.getValue();
         av = game.getAvatar();
     
