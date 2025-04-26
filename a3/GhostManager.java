@@ -43,13 +43,10 @@ public class GhostManager {
      * @throws IOException if the shape or texture loading fails.
     */
     public void createGhost(UUID id, Vector3f p) throws IOException {
-        ObjShape s = game.getGhostShape();
-        GhostAvatar newAvatar = new GhostAvatar(id, s, null, p); // No texture, just color
-    
-        // Assign a unique color based on UUID
-        Vector3f uniqueColor = game.getUniqueColorForClient(id);
-        newAvatar.getRenderStates().setColor(uniqueColor);
-        newAvatar.getRenderStates().setHasSolidColor(true); // Enable solid color rendering
+        ObjShape s = game.rabbitS;
+        TextureImage t = game.rabbittx;
+        GhostAvatar newAvatar = new GhostAvatar(id, s, t, p);
+        
     
         Matrix4f initialScale = new Matrix4f().scaling(0.25f);
         newAvatar.setLocalScale(initialScale);

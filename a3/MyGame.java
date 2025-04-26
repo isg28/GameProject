@@ -6,6 +6,8 @@ import java.lang.Math;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.awt.event.*;
@@ -51,10 +53,10 @@ public class MyGame extends VariableFrameRateGame
 	private int counter=0;
 	private double lastFrameTime, currFrameTime, elapsTime;
 
-	private GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan;
-	private ObjShape dolS, linxS, linyS, linzS, ghostS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
-																wheatS, wateringcanS;
-	private TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx;
+	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan;
+	protected ObjShape dolS, linxS, linyS, linzS, ghostS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
+																wheatS, wateringcanS, waterCubeS;
+	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx;
 	private Light light1; 
 
 	private InputManager im;
@@ -94,6 +96,14 @@ public class MyGame extends VariableFrameRateGame
 	public static enum MarketMode { NONE, CHOOSING, BUYING, SELLING }
 	private MarketMode marketMode = MarketMode.NONE;
 	private boolean showNotEnoughCoinsMessage = false;
+	private boolean holdingWateringCan = false;
+	private boolean shouldAttachWateringCan = false;
+	private boolean shouldDetachWateringCan = false;
+	private List<Crop> cropsToRemove = new ArrayList<>();
+	private List<GameObject> objectsToDisable = new ArrayList<>();
+	private boolean initializationComplete = false;
+	private List<Runnable> renderStateQueue = new ArrayList<>(); // New queue for render state changes
+	private boolean isWatering = false; 
 
 	/**
     * Constructs the game instance and initializes the game loop.
@@ -116,14 +126,9 @@ public class MyGame extends VariableFrameRateGame
 	/**
      * Initializes the game's lighting system.
      */
-	@Override
-	public void initializeLights()
-	{	
-		Light.setGlobalAmbient(0.5f, 0.5f, 0.5f);
-		light1 = new Light();
-		light1.setLocation(new Vector3f(5.0f, 4.0f, 2.0f));
-		(engine.getSceneGraph()).addLight(light1);
-	}
+	public void initializeLights() {
+
+    }
 
 
 	/**
@@ -134,34 +139,50 @@ public class MyGame extends VariableFrameRateGame
 		MyGame game = new MyGame(args[0], Integer.parseInt(args[1]), args[2]);
 		engine = new Engine(game);
 		game.initializeSystem();
-		game.game_loop();
 		game.initializeLights();
+		game.game_loop();
 	}
 	/**
 	 * Loads 3D models for key scene elements, including the player avatar and axis lines.
 	 * This is where future shapes for crops, tools, and animals will be loaded.
 	 */
 	@Override
-	public void loadShapes()
-	{	
+	public void loadShapes() {
 		dolS = new ImportedModel("dolphinHighPoly.obj");
 		pigS = new ImportedModel("pig.obj");
 		chickenS = new ImportedModel("chicken.obj");
 		rabbitS = new ImportedModel("rabbit.obj");
 		carrotS = new ImportedModel("carrot.obj");
- 		homeS = new ImportedModel("home.obj");
-		//treeS = new ImportedModel("tree.obj");
+		homeS = new ImportedModel("home.obj");
 		marketS = new ImportedModel("market.obj");
 		plantS = new ImportedModel("plant.obj");
 		wheatS = new ImportedModel("wheat.obj");
-		wateringcanS = new ImportedModel("watercan.obj");
-		linxS = new Line(new Vector3f(0f,0f,0f), new Vector3f(10f,0f,0f));  
-		linyS = new Line(new Vector3f(0f,0f,0f), new Vector3f(0f,10f,0f));  
-		linzS = new Line(new Vector3f(0f,0f,0f), new Vector3f(0f,0f,-10f)); 
+	
+		// Robustly load watering can
+		try {
+			wateringcanS = new ImportedModel("watercan.obj");
+			if (wateringcanS == null || 
+				wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0 ||
+				wateringcanS.getTexCoords() == null || wateringcanS.getTexCoords().length == 0 ||
+				wateringcanS.getNormals() == null || wateringcanS.getNormals().length == 0) {
+				System.err.println("Watering can model is invalid (null or empty vertices/texcoords/normals) - using Cube fallback");
+				wateringcanS = new Cube();
+			}
+		} catch (Exception e) {
+			System.err.println("Error loading watering can model: " + e.getMessage() + " - using Cube fallback");
+			wateringcanS = new Cube();
+		}
+	
+		linxS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(10f, 0f, 0f));
+		linyS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(0f, 10f, 0f));
+		linzS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(0f, 0f, -10f));
 		ghostS = new Sphere();
 		terrS = new TerrainPlane(1000);
-		hills = new TextureImage("border2.jpg");
-		
+		borderShape = new Torus();
+		if (borderShape == null || borderShape.getVertices() == null || borderShape.getVertices().length == 0) {
+			System.err.println("Border shape failed to load correctly. Using Cube instead.");
+			borderShape = new Cube();
+		}
 	}
     /**
      * Loads and assigns texture images to various objects in the game.
@@ -191,8 +212,12 @@ public class MyGame extends VariableFrameRateGame
 		sunsetTerrain = new TextureImage("sunsetTerrain.jpg");
 		nightTerrain = new TextureImage("nightTerrain.jpg");
 
-		//hills = new TextureImage("hills.jpg");
-		
+		try {
+			hills = new TextureImage("hills.jpg");
+		} catch (Exception e) {
+			System.err.println("Failed to load hills.jpg: " + e.getMessage() + " - height map will be disabled");
+			hills = null;
+		}		
 
 	}
 	
@@ -203,6 +228,7 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void buildObjects()
 	{	
+		System.out.println("Starting buildObjects...");
 		Matrix4f initialTranslation, initialScale;
 		if (engine == null) {
 			System.out.println("Engine not initialized yet.");
@@ -213,12 +239,29 @@ public class MyGame extends VariableFrameRateGame
 		bouncingController = new BouncingController(2000); 
 		engine.getSceneGraph().addNodeController(bouncingController);
 
-		dol = new GameObject(GameObject.root(), dolS, doltx);
+		// Initialize lights early to stabilize SSBO
+        Light.setGlobalAmbient(0.5f, 0.5f, 0.5f);
+        light1 = new Light();
+        light1.setLocation(new Vector3f(5.0f, 4.0f, 2.0f));
+        light1.setDiffuse(1.0f, 1.0f, 1.0f);
+        light1.setAmbient(0.3f, 0.3f, 0.3f);
+        engine.getSceneGraph().addLight(light1);
+
+        // Add more dummy lights for SSBO stability
+        for (int i = 0; i < 5; i++) {
+            Light dummyLight = new Light();
+            dummyLight.setLocation(new Vector3f(0, -10, 0)); // Off-screen
+            dummyLight.setDiffuse(0, 0, 0); // No contribution
+            dummyLight.setAmbient(0, 0, 0);
+            engine.getSceneGraph().addLight(dummyLight);
+        }
+
+/*  		dol = new GameObject(GameObject.root(), dolS, doltx);
 		initialTranslation = (new Matrix4f()).translation(0,0,0);
 		dol.setLocalTranslation(initialTranslation);
 		initialScale = (new Matrix4f().scaling(0.25f));
 		dol.setLocalTranslation(initialTranslation);
-		dol.setLocalScale(initialScale);
+		dol.setLocalScale(initialScale);  */
 
 		pig = new GameObject(GameObject.root(), pigS, pigtx);
 		initialTranslation = (new Matrix4f()).translation(2,0,0);
@@ -240,13 +283,6 @@ public class MyGame extends VariableFrameRateGame
 		initialScale = (new Matrix4f().scaling(0.1f));
 		rabbit.setLocalTranslation(initialTranslation);
 		rabbit.setLocalScale(initialScale);
-
-		carrot = new GameObject(GameObject.root(), carrotS, carrottx);
-		initialTranslation = (new Matrix4f()).translation(1,1,0);
-		carrot.setLocalTranslation(initialTranslation);
-		initialScale = (new Matrix4f().scaling(0.3f));
-		carrot.setLocalTranslation(initialTranslation);
-		carrot.setLocalScale(initialScale);
 
 		home = new GameObject(GameObject.root(), homeS, hometx);
 		initialTranslation = (new Matrix4f()).translation(-3,0,0);
@@ -283,21 +319,17 @@ public class MyGame extends VariableFrameRateGame
 		market.setLocalRotation(rotation);
 		initialScale = new Matrix4f().scaling(0.2f);
 		market.setLocalScale(initialScale);
-		
-        
-		wheat = new GameObject(GameObject.root(), wheatS, wheattx);
-		initialTranslation = (new Matrix4f()).translation(0,0,-2);
-		wheat.setLocalTranslation(initialTranslation);
-		initialScale = (new Matrix4f().scaling(0.2f));
-		wheat.setLocalTranslation(initialTranslation);
-		wheat.setLocalScale(initialScale);
 
-		wateringcan = new GameObject(GameObject.root(), wateringcanS, wateringcantx);
-		initialTranslation = (new Matrix4f()).translation(-1,1,1);
-		wateringcan.setLocalTranslation(initialTranslation);
-		initialScale = (new Matrix4f().scaling(0.2f));
-		wateringcan.setLocalTranslation(initialTranslation);
-		wateringcan.setLocalScale(initialScale);
+		wateringcan = new GameObject(rabbit, wateringcanS, wateringcantx);
+		if (wateringcanS == null || wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0) {
+			System.err.println("Watering can shape invalid at initialization, using Cube fallback");
+			wateringcan.setShape(new Cube());
+		}
+		wateringcan.setLocalTranslation(new Matrix4f().translation(0.1f, 0.1f, 0.1f));
+		// Set no rotation (identity matrix) to prevent rotation
+		wateringcan.setLocalRotation(new Matrix4f()); // Identity matrix, no rotation
+		wateringcan.setLocalScale(new Matrix4f().scaling(0.4f));
+		wateringcan.getRenderStates().disableRendering();
 
 		x = new GameObject(GameObject.root(), linxS);
 		y = new GameObject(GameObject.root(), linyS);
@@ -306,7 +338,6 @@ public class MyGame extends VariableFrameRateGame
 		(y.getRenderStates()).setColor(new Vector3f(0f,1f,0f));
 		(z.getRenderStates()).setColor(new Vector3f(0f,0f,1f));
 
-		Vector3f dolPosition = dol.getWorldLocation();
 
 		// Terrain setup
 		terr = new GameObject(GameObject.root(), terrS, dayOneTerrain);
@@ -332,6 +363,42 @@ public class MyGame extends VariableFrameRateGame
 		terrainManager.registerTerrainTexture("eveningTwo", eveningTwoTerrain);
 		terrainManager.registerTerrainTexture("sunset", sunsetTerrain);
 		terrainManager.registerTerrainTexture("night", nightTerrain);
+
+		// Create border toruses around the terrain edges
+		for (float x = -15; x <= 15; x += 3f) {
+			createBorderTorus(x, 0, -15); // back
+			createBorderTorus(x, 0, 15);  // front
+		}
+		for (float z = -12; z <= 12; z += 3f) {
+			createBorderTorus(-15, 0, z); // left
+			createBorderTorus(15, 0, z);  // right
+		}
+		avatar = rabbit;
+
+		// Queue rendering enablement for after initialization
+		renderStateQueue.add(() -> {
+			pig.getRenderStates().enableRendering();
+			chicken.getRenderStates().enableRendering();
+			rabbit.getRenderStates().enableRendering();
+			home.getRenderStates().enableRendering();
+			plant.getRenderStates().enableRendering();
+			market.getRenderStates().enableRendering();
+			terr.getRenderStates().enableRendering();
+			x.getRenderStates().enableRendering();
+			y.getRenderStates().enableRendering();
+			z.getRenderStates().enableRendering();
+		});
+
+		synchronized (renderStateQueue) {
+			Iterator<Runnable> iterator = renderStateQueue.iterator();
+			while (iterator.hasNext()) {
+				iterator.next().run();
+				iterator.remove();
+			}
+		}
+		
+		System.out.println("Finished buildObjects, activeCrops size: " + activeCrops.size());
+
 	}
 
 	/**
@@ -342,6 +409,7 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void initializeGame()
 	{
+		System.out.println("Starting initializeGame...");
 		lastFrameTime = System.currentTimeMillis();
 		currFrameTime = System.currentTimeMillis();
 		elapsTime = 0.0;
@@ -354,7 +422,6 @@ public class MyGame extends VariableFrameRateGame
 
 		// ------------- initialize camera -------------
 		im = engine.getInputManager();
-		avatar = dol; 
 		Camera c = engine.getRenderSystem().getViewport("MAIN").getCamera();
 		orbitController = new CameraOrbit3D(c, avatar, engine);
 
@@ -480,6 +547,10 @@ public class MyGame extends VariableFrameRateGame
 					},
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
+
+
+        initializationComplete = true; // Mark initialization as complete
+		System.out.println("Finished initializeGame, rendering enabled");
 	}
 
 	private void setupNetworking() {
@@ -506,6 +577,10 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void update()
 	{
+		if (!initializationComplete) {
+            return; // Skip updates until initialization is complete
+        }
+
 		if (skyboxManager == null && terrainManager != null) {
 			skyboxManager = new SkyboxManager(engine.getSceneGraph(), terrainManager, this);
 			return; 
@@ -522,14 +597,36 @@ public class MyGame extends VariableFrameRateGame
 		
 		// Handle terrain height adjustment
 		if (terr != null) {
-			Vector3f loc = dol.getWorldLocation();
-			float height = terr.getHeight(loc.x(), loc.z());
-			float currentY = loc.y();
-			float targetY = height + 0.1f;
-			
-			if (Math.abs(currentY - targetY) > 0.01f) {
-				dol.setLocalLocation(new Vector3f(loc.x(), targetY, loc.z()));
+			Vector3f loc = avatar.getWorldLocation();
+			float targetY = 0.1f; // Default height if no height map
+			if (terr.getHeightMap() != null) {
+				try {
+					float height = terr.getHeight(loc.x(), loc.z());
+					targetY = height + 0.1f;
+				} catch (Exception e) {
+					System.err.println("Error getting terrain height: " + e.getMessage() + " - using default height");
+				}
+			} else {
+				System.out.println("No height map set for terrain - using default height");
 			}
+
+			float currentY = loc.y();
+			if (Math.abs(currentY - targetY) > 0.01f) {
+				avatar.setLocalLocation(new Vector3f(loc.x(), targetY, loc.z()));
+			}
+		}
+		
+		// Update watering can position to maintain consistent offset
+		if (wateringcan != null && wateringcan.getRenderStates().renderingEnabled()) {
+			Vector3f rabbitForward = rabbit.getWorldForwardVector().normalize();
+			Vector3f rabbitRight = rabbit.getWorldRightVector().normalize();
+			Vector3f rabbitUp = rabbit.getWorldUpVector().normalize();
+			// Desired offset: slightly in front (0.15f), to the right (0.1f), and above (0.1f)
+			Vector3f offset = rabbitForward.mul(0.1f)
+							.add(rabbitRight.mul(0.1f))
+							.add(rabbitUp.mul(0.1f));
+			wateringcan.setLocalTranslation(new Matrix4f().translation(offset));
+			wateringcan.setLocalRotation(new Matrix4f()); // Ensure no rotation
 		}
 
 		if (shouldResetSkybox && skyboxManager != null) {
@@ -545,18 +642,18 @@ public class MyGame extends VariableFrameRateGame
 			orbitController.updateCameraPosition();
 		}
 
-		loc = dol.getWorldLocation() ;
- 		fwd = dol.getWorldForwardVector();
-		up = dol.getWorldUpVector();
-		right = dol.getWorldRightVector();
+		loc = avatar.getWorldLocation() ;
+ 		fwd = avatar.getWorldForwardVector();
+		up = avatar.getWorldUpVector();
+		right = avatar.getWorldRightVector();
 	
-		String hudMessage = "Status: Roaming the Fields";
-		
+		String hudMessage = isWatering ? "Status: Watering Crops" : "Status: Roaming the Fields";
+
 		im.update((float)elapsTime);
 		processNetworking((float)elapsTime);
 
 		// build and set HUD
-    String dispStr1 = "Objective: Buy seeds, plant crops with E, harvest with H, and sell them at the market to earn coins!";
+    	String dispStr1 = "Objective: Buy seeds, plant crops with E, harvest with H, and sell them at the market to earn coins!";
 		String dispStr3 = "Surveillance Camera on Dolphin";
 		String coinStr = "Coins: " + coins;
 
@@ -653,40 +750,40 @@ public class MyGame extends VariableFrameRateGame
 			engine.getHUDmanager().setHUD12("+----------------------+ ", new Vector3f(1f, 1f, 1f), baseX, baseY + 90);
 		}
 		
+		cropsToRemove.clear();
+		objectsToDisable.clear();
 		
-
-		for (int i = 0; i < activeCrops.size(); i++) {
-			Crop crop = activeCrops.get(i);
+		// Update crops
+		for (Crop crop : activeCrops) {
 			crop.update();
-		
-			if (crop.isReadyToHarvest() && !crop.hasGrown()) {
-				GameObject currentObj = crop.getPlantedObject();
-		
-				if (currentObj != null) {
-					Vector3f growPos = currentObj.getWorldLocation();
-					currentObj.getRenderStates().disableRendering();
-		
-					// Create the grown crop based on type
-					GameObject grownObj;
-					if (crop.getType().equals("Wheat")) {
-						grownObj = new GameObject(GameObject.root(), wheatS, wheattx);
-					} else if (crop.getType().equals("Carrot")) {
-						grownObj = new GameObject(GameObject.root(), carrotS, carrottx);
-					} else {
-						System.out.println("Unknown crop type: " + crop.getType());
-						continue; // Skip unknown crops
-					}
-		
-					grownObj.setLocalTranslation(new Matrix4f().translation(growPos));
-					grownObj.setLocalScale(new Matrix4f().scaling(0.15f));
-					crop.setPlantedObject(grownObj);
-					crop.setHasGrown(true);
-		
-					System.out.println(crop.getType() + " has grown!");
-				}
+		}
+
+		// Process crop removals and object disabling
+		synchronized (activeCrops) {
+			for (Crop crop : cropsToRemove) {
+				activeCrops.remove(crop);
 			}
+			cropsToRemove.clear();
+		}
+
+		synchronized (objectsToDisable) {
+			for (GameObject obj : objectsToDisable) {
+				renderStateQueue.add(() -> obj.getRenderStates().disableRendering());
+			}
+			objectsToDisable.clear();
+		}
+
+		if (shouldAttachWateringCan) {
+			wateringcan.getRenderStates().enableRendering();
+			shouldAttachWateringCan = false;
 		}
 		
+		if (shouldDetachWateringCan) {
+			wateringcan.getRenderStates().disableRendering();
+			shouldDetachWateringCan = false;
+		}
+		
+
 	}
 	// Process packets received by the client from the server
 	protected void processNetworking(float elapsTime)
@@ -800,13 +897,13 @@ public class MyGame extends VariableFrameRateGame
 				} else {
 					System.out.println("Warning: Cannot send move message, client not connected.");
 				}	
-				moveDolphin(1);
+				moveAvatar(1);
 				break;
 			case KeyEvent.VK_S:
 				if (marketMode == MarketMode.CHOOSING) {
 					marketMode = MarketMode.SELLING;
 				} else{
-					moveDolphin(-1);
+					moveAvatar(-1);
 				}
 				break;
 			case KeyEvent.VK_A: 
@@ -873,65 +970,72 @@ public class MyGame extends VariableFrameRateGame
 					protClient.sendByeMessage();
 				}
 				System.exit(0); // Exit after sending
+			break;
 
 			case KeyEvent.VK_H:
-				for (int i = 0; i < activeCrops.size(); i++) {
-					Crop crop = activeCrops.get(i);
-			
-					if (crop.isReadyToHarvest() && crop.hasGrown()) {
+				if (marketMode != MarketMode.NONE || isBuyingSeeds) break; // Prevent harvesting in market UI
+				for (Crop crop : activeCrops) {
+					if (!crop.isHarvested() && crop.isReadyToHarvest() && crop.hasGrown()) { // << ADD !crop.isHarvested()
 						GameObject plantedObj = crop.getPlantedObject();
 						if (plantedObj != null) {
-							float distance = dol.getWorldLocation().sub(plantedObj.getWorldLocation()).length();
-			
+							float distance = avatar.getWorldLocation().sub(plantedObj.getWorldLocation()).length();
 							if (distance < 1.5f) {
-								plantedObj.getRenderStates().disableRendering();
-			
 								if (inventoryCount < 5) {
+									synchronized (cropsToRemove) {
+										cropsToRemove.add(crop);
+									}
+									synchronized (objectsToDisable) {
+										objectsToDisable.add(plantedObj);
+									}
+				
+									plantedObj.getRenderStates().disableRendering();
+									crop.markHarvested(); // << ADD THIS to immediately block it from being harvested again!
+				
 									inventory[inventoryCount++] = crop.getType();
 									System.out.println("Harvested " + crop.getType() + "!");
+								} else {
+									System.out.println("Inventory full! Cannot harvest " + crop.getType());
 								}
-			
-								activeCrops.remove(i); // remove the harvested crop
-								break; 
+								break; // Harvest one at a time
 							}
 						}
 					}
 				}
-			break;
-			
-			
+			break;		
 			
 			case KeyEvent.VK_M:
-				float distToMarket = dol.getWorldLocation().sub(market.getWorldLocation()).length();
+				float distToMarket = avatar.getWorldLocation().sub(market.getWorldLocation()).length();
 				if (distToMarket < 2.0f) {
 					marketMode = MarketMode.CHOOSING;
 				}
 			break;
 			
-			
 			case KeyEvent.VK_E:
-			for (int i = 0; i < inventory.length; i++) {
-				if (inventory[i] != null && inventory[i].startsWith("Seed_")) {
-					String cropType = inventory[i].split("_")[1];
-					inventory[i] = null;
-					inventoryCount--;
-		
-					Vector3f forward = dol.getWorldForwardVector().normalize();
-					Vector3f position = dol.getWorldLocation().add(forward.mul(0.5f));
-		
-					GameObject planted = new GameObject(GameObject.root(), plantS, planttx);
-					planted.setLocalTranslation(new Matrix4f().translation(position.x(), 0, position.z()));
-					planted.setLocalScale(new Matrix4f().scaling(0.020f));
-		
-					double growTime = cropType.equals("Carrot") ? 20 : 30;
-		
-					Crop crop = new Crop(cropType, growTime);
-					crop.setPlantedObject(planted);
-					activeCrops.add(crop);
-		
-					break;
+				for (int i = 0; i < inventory.length; i++) {
+					if (inventory[i] != null && inventory[i].startsWith("Seed_")) {
+						String cropType = inventory[i].split("_")[1];
+						inventory[i] = null;
+						inventoryCount--;
+			
+						Vector3f forward = avatar.getWorldForwardVector().normalize();
+						Vector3f position = avatar.getWorldLocation().add(forward.mul(0.5f));
+			
+						GameObject planted = new GameObject(GameObject.root(), plantS, planttx);
+						planted.setLocalTranslation(new Matrix4f().translation(position.x(), 0, position.z()));
+						planted.setLocalScale(new Matrix4f().scaling(0.020f));
+			
+						double growTime = cropType.equals("Carrot") ? 45 : 30;
+						ObjShape targetShape = cropType.equals("Carrot") ? carrotS : wheatS;
+						TextureImage targetTexture = cropType.equals("Carrot") ? carrottx : wheattx;
+			
+						Crop crop = new Crop(cropType, growTime, targetShape, targetTexture);
+						crop.setPlantedObject(planted);
+						activeCrops.add(crop);
+			
+						compactInventory(); // Ensure inventory is compacted after removing seed
+						break;
+					}
 				}
-			}
 			break;
 		
 			case KeyEvent.VK_B:
@@ -947,7 +1051,16 @@ public class MyGame extends VariableFrameRateGame
 					showNotEnoughCoinsMessage = false;
 				}
 			break;
-		
+			case KeyEvent.VK_SPACE:
+				if (wateringcan != null && wateringcan.getShape() != null) {
+					holdingWateringCan = !holdingWateringCan;
+					if (holdingWateringCan) {
+						shouldAttachWateringCan = true;
+					} else {
+						shouldDetachWateringCan = true;
+					}
+				}
+			break;
 		}
 		super.keyPressed(e);
 	}
@@ -958,34 +1071,34 @@ public class MyGame extends VariableFrameRateGame
      * @return The GameObject representing the player's avatar.
      */
 	public GameObject getAvatar() { 
-		if (dol == null) {
-			System.out.println("Dolphin object is null!");
+		if (avatar == null) {
+			System.out.println("Rabbit object is null!");
 		}
-		return dol; 
+		return avatar; 
 	}
 	/**
-    * Moves the dolphin forward or backward based on player input.
+    * Moves the rabbit forward or backward based on player input.
     *
     * @param direction 1 for forward, -1 for backward.
     */
-	public void moveDolphin(int direction)
+	public void moveAvatar(int direction)
 	{
-		Vector3f fwd = dol.getWorldForwardVector();
-		Vector3f loc = dol.getWorldLocation();
+		Vector3f fwd = avatar.getWorldForwardVector();
+		Vector3f loc = avatar.getWorldLocation();
 		Vector3f newLocation = loc.add(fwd.mul(movementSpeed * direction * (float) elapsTime));
 	
 		// Set tight bounds near the terrain center (adjust as needed)
-		float minX = -15.0f;
-		float maxX = 15.0f;
-		float minZ = -15.0f;
-		float maxZ = 15.0f;
+		float minX = -12.0f;
+		float maxX = 12.0f;
+		float minZ = -12.0f;
+		float maxZ = 12.0f;
 	
 		if (newLocation.x() < minX || newLocation.x() > maxX || 
 			newLocation.z() < minZ || newLocation.z() > maxZ) {
 			return;
 		}
 	
-		dol.setLocalLocation(newLocation);
+		avatar.setLocalLocation(newLocation);
 	}
 	
 	
@@ -1020,28 +1133,28 @@ public class MyGame extends VariableFrameRateGame
 		elapsTime = 0.0;
 
 		// Reset dolphin
-		dol.setLocalTranslation(new Matrix4f().translation(0, 0, 0));
-		dol.setLocalScale(new Matrix4f().scaling(0.25f));
-		dol.setLocalRotation(new Matrix4f().rotateY((float) Math.PI / 2));
+		avatar.setLocalTranslation(new Matrix4f().translation(0, 0, 0));
+		avatar.setLocalScale(new Matrix4f().scaling(0.25f));
+		avatar.setLocalRotation(new Matrix4f().rotateY((float) Math.PI / 2));
 
 		// Attach the camera back to the dolphin
 		Camera cam = engine.getRenderSystem().getViewport("MAIN").getCamera();
 		if (cam != null) {
-			Vector3f dolLoc = dol.getWorldLocation();
+			Vector3f avatarLoc = avatar.getWorldLocation();
 			Vector3f newFwd = new Vector3f(-1, 0, 0); 
 			Vector3f newRight = new Vector3f(0, 0, -1); 
 			Vector3f newUp = new Vector3f(0, 1, 0);
 			cam.setU(newRight);
 			cam.setV(newUp);
 			cam.setN(newFwd);
-			cam.setLocation(dolLoc.add(newUp.mul(0.1f)).add(newFwd.mul(-0.3f)));
+			cam.setLocation(avatarLoc.add(newUp.mul(0.1f)).add(newFwd.mul(-0.3f)));
 		}
 	
 		// Reset lights
 		light1.setDiffuse(1.0f, 1.0f, 1.0f);
 		light1.setAmbient(0.3f, 0.3f, 0.3f);
 
-		dol.getRenderStates().hasLighting(true);
+		avatar.getRenderStates().hasLighting(true);
 		
 		System.out.println("Game Reset!");
 	}
@@ -1094,8 +1207,8 @@ public class MyGame extends VariableFrameRateGame
 		rightVp.getCamera().setV(new Vector3f(0, 0, -1));
 		rightVp.getCamera().setN(new Vector3f(0, -1, 0));
 
-		rightViewportOffset = new Vector3f(rightVp.getCamera().getLocation()).sub(dol.getWorldLocation());
-		leftViewportOffset = new Vector3f(leftVp.getCamera().getLocation()).sub(dol.getWorldLocation());	
+		rightViewportOffset = new Vector3f(rightVp.getCamera().getLocation()).sub(avatar.getWorldLocation());
+		leftViewportOffset = new Vector3f(leftVp.getCamera().getLocation()).sub(avatar.getWorldLocation());	
 	}
 
 	/**
@@ -1148,9 +1261,9 @@ public class MyGame extends VariableFrameRateGame
 	 * @param offset The original offset to maintain relative positioning
 	 */
 	private void resetViewportCamera(Camera cam, Vector3f offset) {
-		Vector3f newPos = new Vector3f(dol.getWorldLocation()).add(offset);
+		Vector3f newPos = new Vector3f(avatar.getWorldLocation()).add(offset);
 		cam.setLocation(newPos);
-		cam.lookAt(dol);
+		cam.lookAt(avatar);
 	}
 
 	/**
@@ -1262,5 +1375,27 @@ public class MyGame extends VariableFrameRateGame
 	public boolean isBuyingSeeds() {
 		return isBuyingSeeds;
 	}
+
+	private void createBorderTorus(float x, float y, float z) {
+		GameObject torus = new GameObject(GameObject.root(), borderShape, null);
+		Matrix4f pos = new Matrix4f().translation(x, y + 0.05f, z);
+		Matrix4f scale = new Matrix4f().scaling(0.4f);
+		torus.setLocalTranslation(pos);
+		torus.setLocalScale(scale);
+		torus.getRenderStates().setColor(new Vector3f(1f, 0.5f, 0.2f)); // optional: orange borders
+
+		if (borderShape == null || borderShape.getVertices() == null || borderShape.getVertices().length == 0) {
+			System.err.println("Invalid border shape! Skipping border torus creation.");
+			return;
+		}
+		
+	}
+	
+	@Override
+	public void keyReleased(KeyEvent e) {
+		super.keyReleased(e);
+	}
+	
+
 	
 }
