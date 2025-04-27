@@ -16,6 +16,7 @@ public class Crop {
     private ObjShape targetShape; // Shape when ready (e.g., wheatS, carrotS)
     private TextureImage targetTexture; // Texture when ready (e.g., wheattx, carrottx)
     private boolean harvested = false;
+    private boolean wateredOnce = false;
 
 
     public Crop(String type, double growTimeSeconds, ObjShape targetShape, TextureImage targetTexture) {
@@ -35,34 +36,30 @@ public class Crop {
                 ready = true;
                 hasGrown = true;
                 System.out.println("Crop is now ready to harvest!");
-                // Update plantedObject to final shape and texture
+                // swap in final mesh & texture
                 if (plantedObject != null && targetShape != null && targetTexture != null) {
                     plantedObject.setShape(targetShape);
                     plantedObject.setTextureImage(targetTexture);
-                    // Adjust scale for final form (e.g., match wheat/carrot scaling)
-                    plantedObject.setLocalScale(new Matrix4f().scaling(type.equals("Carrot") ? 0.3f : 0.2f));
+                    plantedObject.setLocalScale(
+                        new Matrix4f().scaling(type.equals("Carrot") ? 0.3f : 0.2f)
+                    );
                 }
             }
         }
     }
 
+    /** 
+     * Subtracts 'seconds' from the remaining grow time—but only once per crop. 
+    */
     public void water(double seconds) {
-        if (!ready && !hasGrown) {
-            growTimeMillis -= (long)(seconds * 1000);
-            if (growTimeMillis <= 0) {
-                growTimeMillis = 0;
-                ready = true;
-                hasGrown = true;
-                System.out.println("Crop watered and now ready to harvest!");
-                // Update plantedObject to final shape and texture
-                if (plantedObject != null && targetShape != null && targetTexture != null) {
-                    plantedObject.setShape(targetShape);
-                    plantedObject.setTextureImage(targetTexture);
-                    plantedObject.setLocalScale(new Matrix4f().scaling(type.equals("Carrot") ? 0.3f : 0.2f));
-                }
-            }
-        }
+        if (wateredOnce || ready) return;
+        wateredOnce = true;
+        // pretend it was planted `seconds` earlier:
+        // so update() will think the crop has been growing longer
+        startTime -= (long)(seconds * 1000);
+        System.out.println("Crop watered: knocking off " + seconds + "s");
     }
+    
 
     public boolean isReadyToHarvest() {
         return ready;

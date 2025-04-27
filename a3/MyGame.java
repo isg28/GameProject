@@ -6,9 +6,11 @@ import java.lang.Math;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.UUID;
 import java.awt.event.*;
 import java.io.IOException;
@@ -24,6 +26,8 @@ import tage.networking.server.ProtocolClient;
 import tage.nodeControllers.BouncingController;
 import tage.nodeControllers.RotationController;
 import tage.nodeControllers.StretchController;
+import tage.physics.PhysicsEngine;
+import tage.physics.PhysicsObject;
 import tage.rml.Vector3;
 
 /**
@@ -63,9 +67,6 @@ public class MyGame extends VariableFrameRateGame
 	private Camera mainCamera;
 	private TurnAction turnAction;
 	private final float movementSpeed = 0.05f;
-	private boolean gameOver = false;
-	private boolean victory = false;
-	private double victoryCountdown = -1;
 	private CameraOrbit3D orbitController;
 	private Vector3f rightViewportOffset;
 	private Vector3f leftViewportOffset;
@@ -96,7 +97,6 @@ public class MyGame extends VariableFrameRateGame
 	public static enum MarketMode { NONE, CHOOSING, BUYING, SELLING }
 	private MarketMode marketMode = MarketMode.NONE;
 	private boolean showNotEnoughCoinsMessage = false;
-	private boolean holdingWateringCan = false;
 	private boolean shouldAttachWateringCan = false;
 	private boolean shouldDetachWateringCan = false;
 	private List<Crop> cropsToRemove = new ArrayList<>();
@@ -104,31 +104,72 @@ public class MyGame extends VariableFrameRateGame
 	private boolean initializationComplete = false;
 	private List<Runnable> renderStateQueue = new ArrayList<>(); // New queue for render state changes
 	private boolean isWatering = false; 
+	private List<GameObject> waterDroplets = new ArrayList<>();
+	private List<PhysicsObject> waterDropletPhysics = new ArrayList<>();
+	PhysicsEngine physicsEngine;
+	private static final float DROP_INTERVAL = 0.05f;
+	private float spawnTimer = 0f;
+	private List<Boolean> waterGrounded   = new ArrayList<>();
+	private List<Float>   waterGroundTime = new ArrayList<>();
+	private static final float DROPLET_LIFETIME = 2.0f;  // seconds
+	private List<Boolean> hasBouncedOffPlant = new ArrayList<>();
+	private boolean avatarPhysicsActive = false;
+	private PhysicsObject avatarPhysicsObject = null;
+	private long physicsActivateTime = 0;
+	private static final long PHYSICS_DURATION_MS = 1000; // Physics active duration
+	private boolean isFaceDown = false;
+	private long faceDownStartTime = 0;
+	private static final long FACE_DOWN_DURATION_MS = 2000;
+
 
 	/**
     * Constructs the game instance and initializes the game loop.
     */
-	public MyGame() { super(); }
-
+    public MyGame() {
+        super();
+        // Initialize physicsEngine in constructor
+        physicsEngine = new tage.physics.JBullet.JBulletPhysicsEngine();
+        physicsEngine.initSystem();
+        physicsEngine.setGravity(new float[]{0f, -9.8f, 0f});
+    }
 	
-	public MyGame(String serverAddress, int serverPort, String protocol)
-	{ 
-		super();
-		gm = new GhostManager(this);
-		this.serverAddress = serverAddress;
-		this.serverPort = serverPort;
-		if (protocol.toUpperCase().compareTo("TCP") == 0)
-			this.serverProtocol = ProtocolType.TCP;
-		else
-		this.serverProtocol = ProtocolType.UDP;
-	}
+    public MyGame(String serverAddress, int serverPort, String protocol) {
+        super();
+        gm = new GhostManager(this);
+        this.serverAddress = serverAddress;
+        this.serverPort = serverPort;
+        if (protocol.toUpperCase().compareTo("TCP") == 0)
+            this.serverProtocol = ProtocolType.TCP;
+        else
+            this.serverProtocol = ProtocolType.UDP;
+        // Initialize physicsEngine in constructor
+        physicsEngine = new tage.physics.JBullet.JBulletPhysicsEngine();
+        physicsEngine.initSystem();
+        physicsEngine.setGravity(new float[]{0f, -9.8f, 0f});
+    }
 
 	/**
      * Initializes the game's lighting system.
      */
+	@Override
 	public void initializeLights() {
-
-    }
+		Light.setGlobalAmbient(0.5f, 0.5f, 0.5f);
+	
+		light1 = new Light();
+		light1.setLocation(new Vector3f(5.0f, 4.0f, 2.0f));
+		light1.setDiffuse(1.0f, 1.0f, 1.0f);
+		light1.setAmbient(0.3f, 0.3f, 0.3f);
+		engine.getSceneGraph().addLight(light1);
+	
+		for (int i = 0; i < 5; i++) {
+			Light dummyLight = new Light();
+			dummyLight.setLocation(new Vector3f(0, -10, 0)); 
+			dummyLight.setDiffuse(0, 0, 0);
+			dummyLight.setAmbient(0, 0, 0);
+			engine.getSceneGraph().addLight(dummyLight);
+		}
+	}
+	
 
 
 	/**
@@ -172,6 +213,20 @@ public class MyGame extends VariableFrameRateGame
 			System.err.println("Error loading watering can model: " + e.getMessage() + " - using Cube fallback");
 			wateringcanS = new Cube();
 		}
+
+		try {
+            waterCubeS = new Sphere();
+            if (waterCubeS == null || 
+                waterCubeS.getVertices() == null || waterCubeS.getVertices().length == 0 ||
+                waterCubeS.getTexCoords() == null || waterCubeS.getTexCoords().length == 0 ||
+                waterCubeS.getNormals() == null || waterCubeS.getNormals().length == 0) {
+                System.err.println("Sphere shape is invalid - using Cube fallback");
+                waterCubeS = new Cube();
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading Sphere shape: " + e.getMessage() + " - using Cube fallback");
+            waterCubeS = new Cube();
+        }
 	
 		linxS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(10f, 0f, 0f));
 		linyS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(0f, 10f, 0f));
@@ -239,23 +294,6 @@ public class MyGame extends VariableFrameRateGame
 		bouncingController = new BouncingController(2000); 
 		engine.getSceneGraph().addNodeController(bouncingController);
 
-		// Initialize lights early to stabilize SSBO
-        Light.setGlobalAmbient(0.5f, 0.5f, 0.5f);
-        light1 = new Light();
-        light1.setLocation(new Vector3f(5.0f, 4.0f, 2.0f));
-        light1.setDiffuse(1.0f, 1.0f, 1.0f);
-        light1.setAmbient(0.3f, 0.3f, 0.3f);
-        engine.getSceneGraph().addLight(light1);
-
-        // Add more dummy lights for SSBO stability
-        for (int i = 0; i < 5; i++) {
-            Light dummyLight = new Light();
-            dummyLight.setLocation(new Vector3f(0, -10, 0)); // Off-screen
-            dummyLight.setDiffuse(0, 0, 0); // No contribution
-            dummyLight.setAmbient(0, 0, 0);
-            engine.getSceneGraph().addLight(dummyLight);
-        }
-
 /*  		dol = new GameObject(GameObject.root(), dolS, doltx);
 		initialTranslation = (new Matrix4f()).translation(0,0,0);
 		dol.setLocalTranslation(initialTranslation);
@@ -270,12 +308,44 @@ public class MyGame extends VariableFrameRateGame
 		pig.setLocalTranslation(initialTranslation);
 		pig.setLocalScale(initialScale);
 
+		// Add physics object for pig
+		Vector3f pigPos = pig.getWorldLocation();
+		double[] pigXform = {
+				1, 0, 0, 0,
+				0, 1, 0, 0,
+				0, 0, 1, 0,
+				pigPos.x(), pigPos.y(), pigPos.z(), 1
+		};
+		PhysicsObject pigPhys = physicsEngine.addSphereObject(
+			physicsEngine.nextUID(),
+			0f, // Static
+			pigXform,
+			0.3f // Radius
+		);
+		pig.setPhysicsObject(pigPhys);
+
 		chicken = new GameObject(GameObject.root(), chickenS, chickentx);
 		initialTranslation = (new Matrix4f()).translation(0,0,1);
 		chicken.setLocalTranslation(initialTranslation);
 		initialScale = (new Matrix4f().scaling(0.1f));
 		chicken.setLocalTranslation(initialTranslation);
 		chicken.setLocalScale(initialScale);
+
+		// Add physics object for chicken
+		Vector3f chickenPos = chicken.getWorldLocation();
+		double[] chickenXform = {
+					1, 0, 0, 0,
+					0, 1, 0, 0,
+					0, 0, 1, 0,
+					chickenPos.x(), chickenPos.y(), chickenPos.z(), 1
+		};
+		PhysicsObject chickenPhys = physicsEngine.addSphereObject(
+				physicsEngine.nextUID(),
+				0f, // Static
+				chickenXform,
+				0.3f // Radius
+			);
+		chicken.setPhysicsObject(chickenPhys);
 
 		rabbit = new GameObject(GameObject.root(), rabbitS, rabbittx);
 		initialTranslation = (new Matrix4f()).translation(0,0 ,2);
@@ -285,21 +355,32 @@ public class MyGame extends VariableFrameRateGame
 		rabbit.setLocalScale(initialScale);
 
 		home = new GameObject(GameObject.root(), homeS, hometx);
-		initialTranslation = (new Matrix4f()).translation(-3,0,0);
+		initialTranslation = (new Matrix4f()).translation(-4,0,0);
 		home.setLocalTranslation(initialTranslation);
+		Matrix4f rotateHome = new Matrix4f().rotateY((float) Math.toRadians(180));
+		home.setLocalRotation(rotateHome);
 		initialScale = (new Matrix4f().scaling(0.1f));
 		home.setLocalTranslation(initialTranslation);
 		home.setLocalScale(initialScale);
 
-   		plant = new GameObject(GameObject.root(), plantS, planttx);
-		initialTranslation = (new Matrix4f()).translation(0,0,-1);
-		plant.setLocalTranslation(initialTranslation);
-		initialScale = (new Matrix4f().scaling(0.05f));
-		plant.setLocalTranslation(initialTranslation);
-		plant.setLocalScale(initialScale);  
+		Vector3f homePos = home.getWorldLocation();
 
-		plant.getRenderStates().setTiling(1);
-		plant.getRenderStates().setTileFactor(4);
+		// 2) build a column-major 4×4 = 16-entry transform array
+		double[] homeXform = {
+			1, 0, 0, 0,    // col 0
+			0, 1, 0, 0,    // col 1
+			0, 0, 1, 0,    // col 2
+			homePos.x(), homePos.y(), homePos.z(), 1  // col 3 (translation)
+		};
+		float[] homeHalfExtents = { 0.5f, 1.0f, 0.5f };  
+		PhysicsObject homePhys = physicsEngine.addBoxObject(
+			physicsEngine.nextUID(),
+			0f,              // zero mass = static
+			homeXform,
+			homeHalfExtents
+		);
+		home.setPhysicsObject(homePhys);
+
 
 /*     	tree = new GameObject(GameObject.root(), treeS, treetx);
 		initialTranslation = (new Matrix4f()).translation(1,0,-1);
@@ -319,6 +400,25 @@ public class MyGame extends VariableFrameRateGame
 		market.setLocalRotation(rotation);
 		initialScale = new Matrix4f().scaling(0.2f);
 		market.setLocalScale(initialScale);
+
+		Vector3f marketPos = market.getWorldLocation();
+		double[] marketXform = {
+			1, 0, 0, 0,       // column 0
+			0, 1, 0, 0,       // column 1
+			0, 0, 1, 0,       // column 2
+			marketPos.x(),    // column 3 (translation.x)
+			marketPos.y(),    // column 3 (translation.y)
+			marketPos.z(),    // column 3 (translation.z)
+			1                 // column 3 (w)
+		};
+		float[] marketHalfExtents = { 0.5f, 1f, 0.5f };
+		PhysicsObject marketPhys = physicsEngine.addBoxObject(
+			physicsEngine.nextUID(),
+			0f,              // static
+			marketXform,
+			marketHalfExtents
+		);
+		market.setPhysicsObject(marketPhys);		
 
 		wateringcan = new GameObject(rabbit, wateringcanS, wateringcantx);
 		if (wateringcanS == null || wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0) {
@@ -364,6 +464,21 @@ public class MyGame extends VariableFrameRateGame
 		terrainManager.registerTerrainTexture("sunset", sunsetTerrain);
 		terrainManager.registerTerrainTexture("night", nightTerrain);
 
+		// Replace your current terrain physics setup with this:
+		double[] planeTransform = new double[] {
+			1, 0, 0, 0,  // First row
+			0, 1, 0, 0,  // Second row
+			0, 0, 1, 0,  // Third row
+			0, 0, 0, 1   // Fourth row
+		};
+
+		PhysicsObject terrainPhys = physicsEngine.addStaticPlaneObject(
+			physicsEngine.nextUID(),
+			planeTransform,
+			new float[]{0, 1, 0},  // Up vector
+			0f                     // Plane constant
+		);
+		terr.setPhysicsObject(terrainPhys);
 		// Create border toruses around the terrain edges
 		for (float x = -15; x <= 15; x += 3f) {
 			createBorderTorus(x, 0, -15); // back
@@ -381,7 +496,6 @@ public class MyGame extends VariableFrameRateGame
 			chicken.getRenderStates().enableRendering();
 			rabbit.getRenderStates().enableRendering();
 			home.getRenderStates().enableRendering();
-			plant.getRenderStates().enableRendering();
 			market.getRenderStates().enableRendering();
 			terr.getRenderStates().enableRendering();
 			x.getRenderStates().enableRendering();
@@ -389,14 +503,6 @@ public class MyGame extends VariableFrameRateGame
 			z.getRenderStates().enableRendering();
 		});
 
-		synchronized (renderStateQueue) {
-			Iterator<Runnable> iterator = renderStateQueue.iterator();
-			while (iterator.hasNext()) {
-				iterator.next().run();
-				iterator.remove();
-			}
-		}
-		
 		System.out.println("Finished buildObjects, activeCrops size: " + activeCrops.size());
 
 	}
@@ -548,6 +654,12 @@ public class MyGame extends VariableFrameRateGame
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
 
+		synchronized (renderStateQueue) {
+			for (Runnable task : renderStateQueue) {
+				task.run();
+			}
+			renderStateQueue.clear();
+		}
 
         initializationComplete = true; // Mark initialization as complete
 		System.out.println("Finished initializeGame, rendering enabled");
@@ -595,21 +707,18 @@ public class MyGame extends VariableFrameRateGame
 			pendingSkyboxIndex = null;
 		}	
 		
-		// Handle terrain height adjustment
-		if (terr != null) {
+		// Handle terrain height adjustment only if physics is not active
+		if (terr != null && !avatarPhysicsActive && !isFaceDown) {
 			Vector3f loc = avatar.getWorldLocation();
-			float targetY = 0.1f; // Default height if no height map
+			float targetY = 0.1f;
 			if (terr.getHeightMap() != null) {
 				try {
 					float height = terr.getHeight(loc.x(), loc.z());
 					targetY = height + 0.1f;
 				} catch (Exception e) {
-					System.err.println("Error getting terrain height: " + e.getMessage() + " - using default height");
+					System.err.println("Error getting terrain height: " + e.getMessage());
 				}
-			} else {
-				System.out.println("No height map set for terrain - using default height");
 			}
-
 			float currentY = loc.y();
 			if (Math.abs(currentY - targetY) > 0.01f) {
 				avatar.setLocalLocation(new Vector3f(loc.x(), targetY, loc.z()));
@@ -647,8 +756,24 @@ public class MyGame extends VariableFrameRateGame
 		up = avatar.getWorldUpVector();
 		right = avatar.getWorldRightVector();
 	
-		String hudMessage = isWatering ? "Status: Watering Crops" : "Status: Roaming the Fields";
-
+		Vector3f pos = avatar.getWorldLocation();
+		float distToMarket = pos.distance(market.getWorldLocation());
+		float distToHome   = pos.distance(home  .getWorldLocation());
+		
+		String hudMessage;
+		if (isWatering) {
+			hudMessage = "Status: Watering Crops";
+		}
+		else if (distToHome < 1.0f) {
+			hudMessage = "Status: Near the House";
+		}
+		else if (distToMarket < 1.0f) {
+			hudMessage = "Status: Near the Market";
+		}
+		else {
+			hudMessage = "Status: Roaming the Fields";
+		}
+		
 		im.update((float)elapsTime);
 		processNetworking((float)elapsTime);
 
@@ -752,6 +877,103 @@ public class MyGame extends VariableFrameRateGame
 		
 		cropsToRemove.clear();
 		objectsToDisable.clear();
+
+		// Sync avatar position with physics object if active
+		// Sync avatar position with physics object if active
+		if (avatarPhysicsActive && avatarPhysicsObject != null) {
+			double[] physTransform = avatarPhysicsObject.getTransform();
+			Vector3f physPos = new Vector3f(
+				(float) physTransform[12],
+				(float) physTransform[13],
+				(float) physTransform[14]
+			);
+			avatar.setLocalLocation(physPos);
+			Matrix4f rotation = new Matrix4f(
+				(float) physTransform[0], (float) physTransform[4], (float) physTransform[8], 0,
+				(float) physTransform[1], (float) physTransform[5], (float) physTransform[9], 0,
+				(float) physTransform[2], (float) physTransform[6], (float) physTransform[10], 0,
+				0, 0, 0, 1
+			);
+			avatar.setLocalRotation(rotation);
+			System.out.println("Avatar physics active, position updated to: " + physPos);
+
+			// Check if physics duration has expired
+			if (System.currentTimeMillis() - physicsActivateTime > PHYSICS_DURATION_MS) {
+				physicsEngine.removeObject(avatarPhysicsObject.getUID());
+				avatar.setPhysicsObject(null);
+				avatarPhysicsObject = null;
+				avatarPhysicsActive = false;
+				isFaceDown = true; // Enter face-down state
+				faceDownStartTime = System.currentTimeMillis();
+				System.out.println("Physics deactivated, entering face-down state");
+			}
+		}
+
+		// Handle face-down state
+		if (isFaceDown) {
+			// Clamp position to ground
+			Vector3f loc1 = avatar.getWorldLocation();
+			float targetY = 0.1f;
+			if (terr.getHeightMap() != null) {
+				try {
+					float height = terr.getHeight(loc1.x(), loc1.z());
+					targetY = height + 0.1f;
+				} catch (Exception e) {
+					System.err.println("Error getting terrain height: " + e.getMessage());
+				}
+			}
+			avatar.setLocalLocation(new Vector3f(loc1.x(), targetY, loc1.z()));
+	
+			// Check if 4 seconds have passed
+			if (System.currentTimeMillis() - faceDownStartTime > FACE_DOWN_DURATION_MS) {
+				isFaceDown = false;
+				// Reset rotation to upright
+				Matrix4f uprightRotation = new Matrix4f().identity();
+				avatar.setLocalRotation(uprightRotation);
+				System.out.println("Rabbit stood back up");
+			}
+		}
+				
+    // ==== 1) WATER→PLANT COLLISIONS ====
+
+		// inside update(), in your water–plant collision pass:
+		for (int i = 0; i < waterDroplets.size(); i++) {
+			PhysicsObject phys   = waterDropletPhysics.get(i);
+			GameObject   droplet = waterDroplets.get(i);
+			double[]     t       = phys.getTransform();
+			Vector3f     dropPos = new Vector3f((float)t[12], (float)t[13], (float)t[14]);
+	
+			Crop hitCrop = null;
+			// find the first plant under this droplet
+			for (Crop crop : activeCrops) {
+				GameObject planted = crop.getPlantedObject();
+				if (!crop.isReadyToHarvest() && planted != null) {
+					float collisionRadius = 0.2f;
+					if (dropPos.distance(planted.getWorldLocation()) < collisionRadius) {
+						hitCrop = crop;
+						break;
+					}
+				}
+			}
+			if (hitCrop != null && !hasBouncedOffPlant.get(i)) {
+				// water the crop once
+				hitCrop.water(10.0);
+	
+				// hop off the plant
+				float upVel = 0.5f;    // gentle hop
+				float horiz = 0.1f;    // slight scatter
+				float vx = ((float)Math.random() - 0.5f) * horiz;
+				float vz = ((float)Math.random() - 0.5f) * horiz;
+				phys.setLinearVelocity(new float[]{ vx, upVel, vz });
+	
+				// mark so we don’t bounce again
+				hasBouncedOffPlant.set(i, true);
+	
+				waterGrounded.set(i, false);
+				waterGroundTime.set(i, 0f);
+			}
+		}
+
 		
 		// Update crops
 		for (Crop crop : activeCrops) {
@@ -782,9 +1004,95 @@ public class MyGame extends VariableFrameRateGame
 			wateringcan.getRenderStates().disableRendering();
 			shouldDetachWateringCan = false;
 		}
-		
 
+		// in update(), after you compute elapsTime:
+
+    // ==== 2) PHYSICS STEP ====
+
+	// 1) recompute delta-time
+	// compute dt in ms
+	currFrameTime = System.currentTimeMillis();
+	float dtMs = (float)(currFrameTime - lastFrameTime);
+	lastFrameTime = currFrameTime;
+
+	// 2) spawn new drops *before* you step the world
+	if (isWatering && spawnTimer >= DROP_INTERVAL) {
+		spawnWaterDroplet();
+		spawnTimer = 0f;
 	}
+	
+
+	// step physics in ms
+	physicsEngine.update(dtMs);
+
+	// Sync avatar position with physics object if active
+	if (avatarPhysicsActive && avatarPhysicsObject != null) {
+		double[] physTransform = avatarPhysicsObject.getTransform();
+		Vector3f physPos = new Vector3f(
+			(float) physTransform[12],
+			(float) physTransform[13],
+			(float) physTransform[14]
+		);
+		avatar.setLocalLocation(physPos);
+		System.out.println("Avatar physics active, position updated to: " + physPos);
+		System.out.println("Physics velocity: " + Arrays.toString(avatarPhysicsObject.getLinearVelocity()));
+
+		// Check if physics duration has expired
+		if (System.currentTimeMillis() - physicsActivateTime > PHYSICS_DURATION_MS) {
+			physicsEngine.removeObject(avatarPhysicsObject.getUID());
+			avatar.setPhysicsObject(null);
+			avatarPhysicsObject = null;
+			avatarPhysicsActive = false;
+			System.out.println("Physics deactivated, resuming regular movement");
+		}
+	}
+
+	// if you still need seconds for spawnTimer:
+	float dtSec = dtMs * 0.001f;
+	spawnTimer += dtSec;
+
+    // ==== 3) DROPLET→GROUND BOUNCE & LIFETIME ====
+
+	// 3) sync all droplets to their physics body transforms and handle cleanup
+	// after physicsEngine.update(dt);
+	// 4) sync all droplets from their physics bodies into your GameObjects
+    for (int i = 0; i < waterDroplets.size(); i++) {
+        PhysicsObject phys = waterDropletPhysics.get(i);
+        GameObject droplet = waterDroplets.get(i);
+        double[] t = phys.getTransform();
+        float y = (float)t[13];
+        droplet.setLocalTranslation(new Matrix4f().translation((float)t[12], y, (float)t[14]));
+
+        // first hit ground?
+        if (!waterGrounded.get(i) && y <= 0.01f) {
+            waterGrounded.set(i, true);
+            // toss it a little
+            phys.setLinearVelocity(new float[]{
+                (float)(Math.random() - 0.5) * 2f,
+                1.5f,
+                (float)(Math.random() - 0.5) * 2f
+            });
+        }
+
+        // once grounded, age it out
+        if (waterGrounded.get(i)) {
+            float age = waterGroundTime.get(i) + dtSec;
+            waterGroundTime.set(i, age);
+            if (age >= DROPLET_LIFETIME) {
+                // cleanup
+                physicsEngine.removeObject(phys.getUID());
+                droplet.getRenderStates().disableRendering();
+                waterDroplets.remove(i);
+                waterDropletPhysics.remove(i);
+                waterGrounded.remove(i);
+                waterGroundTime.remove(i);
+                hasBouncedOffPlant.remove(i);
+                i--;
+            }
+        }
+    }
+
+    }
 	// Process packets received by the client from the server
 	protected void processNetworking(float elapsTime)
 	{ 
@@ -973,42 +1281,47 @@ public class MyGame extends VariableFrameRateGame
 			break;
 
 			case KeyEvent.VK_H:
-				if (marketMode != MarketMode.NONE || isBuyingSeeds) break; // Prevent harvesting in market UI
-				for (Crop crop : activeCrops) {
-					if (!crop.isHarvested() && crop.isReadyToHarvest() && crop.hasGrown()) { // << ADD !crop.isHarvested()
-						GameObject plantedObj = crop.getPlantedObject();
-						if (plantedObj != null) {
-							float distance = avatar.getWorldLocation().sub(plantedObj.getWorldLocation()).length();
-							if (distance < 1.5f) {
-								if (inventoryCount < 5) {
-									synchronized (cropsToRemove) {
-										cropsToRemove.add(crop);
-									}
-									synchronized (objectsToDisable) {
-										objectsToDisable.add(plantedObj);
-									}
-				
-									plantedObj.getRenderStates().disableRendering();
-									crop.markHarvested(); // << ADD THIS to immediately block it from being harvested again!
-				
-									inventory[inventoryCount++] = crop.getType();
-									System.out.println("Harvested " + crop.getType() + "!");
-								} else {
-									System.out.println("Inventory full! Cannot harvest " + crop.getType());
-								}
-								break; // Harvest one at a time
-							}
+				if (marketMode!=MarketMode.NONE || isBuyingSeeds) break;
+				Crop nearest = null;
+				float bestDist = Float.MAX_VALUE;
+				// find the ready, unharvested crop closest to you
+				for (Crop c: activeCrops) {
+					if (!c.isHarvested() && c.isReadyToHarvest() && c.hasGrown()) {
+						GameObject p = c.getPlantedObject();
+						if (p==null) continue;
+						float d = avatar.getWorldLocation().distance(p.getWorldLocation());
+						if (d < 1.5f && d < bestDist) {
+							bestDist = d;
+							nearest = c;
 						}
 					}
 				}
-			break;		
-			
-			case KeyEvent.VK_M:
-				float distToMarket = avatar.getWorldLocation().sub(market.getWorldLocation()).length();
-				if (distToMarket < 2.0f) {
-					marketMode = MarketMode.CHOOSING;
+				if (nearest != null && inventoryCount < 5) {
+					GameObject p = nearest.getPlantedObject();
+					synchronized(cropsToRemove)   { cropsToRemove.add(nearest); }
+					synchronized(objectsToDisable){ objectsToDisable.add(p);       }
+					p.getRenderStates().disableRendering();
+					nearest.markHarvested();
+					inventory[inventoryCount++] = nearest.getType();
+					System.out.println("Harvested " + nearest.getType());
+				} else if (nearest!=null) {
+					System.out.println("Inventory full!");
 				}
 			break;
+			
+			
+			case KeyEvent.VK_M:
+				Vector3f pos = avatar.getWorldLocation();
+				float distToMarket = pos.distance(market.getWorldLocation());
+				float distToHome   = pos.distance(home.getWorldLocation());
+				if (distToMarket < 1.0f) {
+					marketMode = MarketMode.CHOOSING;
+				}
+				else if (distToHome < 1.0f) {
+					shouldResetSkybox = true;
+				}
+			break;
+		
 			
 			case KeyEvent.VK_E:
 				for (int i = 0; i < inventory.length; i++) {
@@ -1052,15 +1365,14 @@ public class MyGame extends VariableFrameRateGame
 				}
 			break;
 			case KeyEvent.VK_SPACE:
-				if (wateringcan != null && wateringcan.getShape() != null) {
-					holdingWateringCan = !holdingWateringCan;
-					if (holdingWateringCan) {
-						shouldAttachWateringCan = true;
-					} else {
-						shouldDetachWateringCan = true;
-					}
+				isWatering = !isWatering;
+				if (isWatering) {
+					shouldAttachWateringCan = true;
+				} else {
+					shouldDetachWateringCan = true;
 				}
-			break;
+            break;
+		
 		}
 		super.keyPressed(e);
 	}
@@ -1081,26 +1393,35 @@ public class MyGame extends VariableFrameRateGame
     *
     * @param direction 1 for forward, -1 for backward.
     */
-	public void moveAvatar(int direction)
-	{
-		Vector3f fwd = avatar.getWorldForwardVector();
+	public void moveAvatar(int direction) {
+		// 1) compute your candidate new position exactly as before
+		Vector3f fwd = avatar.getWorldForwardVector().normalize();
 		Vector3f loc = avatar.getWorldLocation();
-		Vector3f newLocation = loc.add(fwd.mul(movementSpeed * direction * (float) elapsTime));
+		float step = movementSpeed * direction * (float)elapsTime;
+		Vector3f newLoc = loc.add(new Vector3f(fwd).mul(step));
 	
-		// Set tight bounds near the terrain center (adjust as needed)
-		float minX = -12.0f;
-		float maxX = 12.0f;
-		float minZ = -12.0f;
-		float maxZ = 12.0f;
+		// 2) choose a blocking radius that covers each model’s footprint in XZ
+		//    (your home & market boxes use half-extents of 0.5 in X and Z → radius ~0.75)
+		float blockRadius = 0.50f;
 	
-		if (newLocation.x() < minX || newLocation.x() > maxX || 
-			newLocation.z() < minZ || newLocation.z() > maxZ) {
+		// 3) if that new position would be too close to the house, cancel the move
+		if (newLoc.distance(home.getWorldLocation()) < blockRadius) {
+			return;
+		}
+		// 4) same check for the market
+		if (newLoc.distance(market.getWorldLocation()) < blockRadius) {
 			return;
 		}
 	
-		avatar.setLocalLocation(newLocation);
-	}
+		// 5) your existing world bounds check
+		float minX = -12, maxX = 12, minZ = -12, maxZ = 12;
+		if (newLoc.x() < minX || newLoc.x() > maxX || newLoc.z() < minZ || newLoc.z() > maxZ) {
+			return;
+		}
 	
+		// 6) if we passed all tests, commit the move
+		avatar.setLocalLocation(newLoc);
+	}
 	
 	
     /**
@@ -1121,42 +1442,6 @@ public class MyGame extends VariableFrameRateGame
     */
 	public Camera getMainCamera() {
 		return mainCamera;
-	}
-	/**
-     * Resets the game state to its initial conditions.
-     * This includes resetting object positions, node controller effects, score, lighting, and camera settings.
-    */
-	public void resetGame() {
-		gameOver = false;
-		victory = false;
-		counter = 0;  
-		elapsTime = 0.0;
-
-		// Reset dolphin
-		avatar.setLocalTranslation(new Matrix4f().translation(0, 0, 0));
-		avatar.setLocalScale(new Matrix4f().scaling(0.25f));
-		avatar.setLocalRotation(new Matrix4f().rotateY((float) Math.PI / 2));
-
-		// Attach the camera back to the dolphin
-		Camera cam = engine.getRenderSystem().getViewport("MAIN").getCamera();
-		if (cam != null) {
-			Vector3f avatarLoc = avatar.getWorldLocation();
-			Vector3f newFwd = new Vector3f(-1, 0, 0); 
-			Vector3f newRight = new Vector3f(0, 0, -1); 
-			Vector3f newUp = new Vector3f(0, 1, 0);
-			cam.setU(newRight);
-			cam.setV(newUp);
-			cam.setN(newFwd);
-			cam.setLocation(avatarLoc.add(newUp.mul(0.1f)).add(newFwd.mul(-0.3f)));
-		}
-	
-		// Reset lights
-		light1.setDiffuse(1.0f, 1.0f, 1.0f);
-		light1.setAmbient(0.3f, 0.3f, 0.3f);
-
-		avatar.getRenderStates().hasLighting(true);
-		
-		System.out.println("Game Reset!");
 	}
 	
 	/**
@@ -1396,6 +1681,80 @@ public class MyGame extends VariableFrameRateGame
 		super.keyReleased(e);
 	}
 	
-
-	
+	private void spawnWaterDroplet() {
+		// 1. Create visual droplet with very small size
+		GameObject droplet = new GameObject(GameObject.root(), waterCubeS, null);
+		droplet.getRenderStates().enableRendering();
+		droplet.getRenderStates().setColor(new Vector3f(0.0f, 0.7f, 1.0f)); // Blue water color
+		
+		// 2. Calculate exact spawn position at watering can spout
+		Vector3f canPos = wateringcan.getWorldLocation();
+		Vector3f canForward = wateringcan.getWorldForwardVector();
+		Vector3f canUp = wateringcan.getWorldUpVector();
+		
+		// Adjust these values to match your watering can model's spout position
+		float spoutForwardOffset = 0.07f; // How far forward from can center
+		float spoutUpOffset = 0.1f;      // How high from can center
+		float spoutRightOffset = 0.0f;  // How far to the side
+		
+		Vector3f spawnPos = canPos
+			.add(canForward.mul(spoutForwardOffset))
+			.add(canUp.mul(spoutUpOffset))
+			.add(wateringcan.getWorldRightVector().mul(spoutRightOffset));
+		
+		// 3. Set very small scale for droplet (0.01f = 1cm)
+		float dropletSize = 0.01f; 
+		droplet.setLocalScale(new Matrix4f().scaling(dropletSize));
+		
+		// 4. Create physics object at correct position
+		double[] xform = new double[] {
+			// col 0        col 1        col 2        col 3 (translation)
+			  1, 0, 0,      0,           0,  1, 0,     0,           0,  0, 1,     0,
+			spawnPos.x, spawnPos.y, spawnPos.z,      1
+		};
+		
+		
+		PhysicsObject phys = physicsEngine.addSphereObject(
+			physicsEngine.nextUID(),
+			0.05f, // Very light mass (0.05kg)
+			xform,
+			dropletSize // Match visual size
+		);
+		
+		// 5. Configure physics properties
+		phys.setBounciness(0.2f); // Slight bounce
+		phys.setDamping(0.1f, 0.1f); // Some damping
+		phys.setFriction(0.1f); // Slight friction
+		
+		// 6. Apply initial velocity - mostly downward with slight randomness
+		float initialDownwardVelocity = -2.0f; // Fast enough to look natural
+		phys.setLinearVelocity(new float[]{
+			(float)(Math.random() - 0.5f) * 0.2f, // Small horizontal randomness
+			initialDownwardVelocity,
+			(float)(Math.random() - 0.5f) * 0.2f
+		});
+		
+		// 7. Link physics to visual object
+		droplet.setLocalTranslation(new Matrix4f().translation(spawnPos));
+		droplet.setPhysicsObject(phys);
+		
+		// 8. Add to tracking lists
+		waterDroplets.add(droplet);
+		waterDropletPhysics.add(phys);
+		waterGrounded.add(false);
+		waterGroundTime.add(0f);
+		hasBouncedOffPlant.add(false);
+		
+		}
+		public GameObject getHome()   { return home; }
+		public GameObject getMarket() { return market; }
+		public PhysicsEngine getPhysicsEngine() { return physicsEngine; }
+		public boolean isAvatarPhysicsActive() { return avatarPhysicsActive; }
+		public void setAvatarPhysicsActive(boolean active) { avatarPhysicsActive = active; }
+		public void setAvatarPhysicsObject(PhysicsObject physObj) { avatarPhysicsObject = physObj; }
+		public void setPhysicsActivateTime(long time) { physicsActivateTime = time; }
+		public GameObject getPig() { return pig; }
+		public GameObject getChicken() { return chicken; }
+		public boolean isFaceDown() { return isFaceDown; }
+		
 }
