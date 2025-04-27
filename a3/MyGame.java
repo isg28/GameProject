@@ -120,6 +120,13 @@ public class MyGame extends VariableFrameRateGame
 	private boolean isFaceDown = false;
 	private long faceDownStartTime = 0;
 	private static final long FACE_DOWN_DURATION_MS = 2000;
+	private ChickenAnimationController chickenController; 
+	private PigAnimationController pigController;
+	private PlantAnimationController plantController;
+	private float deltaTime = 0f; // Delta time in milliseconds
+    private long lastUpdateTime = System.nanoTime();
+	private List<PlantAnimationController> plantControllers = new ArrayList<>();
+
 
 
 	/**
@@ -190,13 +197,13 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void loadShapes() {
 		dolS = new ImportedModel("dolphinHighPoly.obj");
-		pigS = new ImportedModel("pig.obj");
-		chickenS = new ImportedModel("chicken.obj");
+		pigS = new AnimatedShape("pig.rkm", "pig.rks");
+		chickenS = new AnimatedShape("chicken.rkm", "chicken.rks");		
 		rabbitS = new ImportedModel("rabbit.obj");
 		carrotS = new ImportedModel("carrot.obj");
 		homeS = new ImportedModel("home.obj");
 		marketS = new ImportedModel("market.obj");
-		plantS = new ImportedModel("plant.obj");
+		plantS = new AnimatedShape("plant.rkm", "plant.rks");
 		wheatS = new ImportedModel("wheat.obj");
 	
 		// Robustly load watering can
@@ -247,7 +254,7 @@ public class MyGame extends VariableFrameRateGame
 	public void loadTextures()
 	{	
 		doltx = new TextureImage("Dolphin_HighPolyUV.png");
-		pigtx = new TextureImage("pigtx.jpg");
+		pigtx = new TextureImage("pigtx2.jpg");
 		chickentx = new TextureImage("chickentx.jpg");
 		rabbittx = new TextureImage("rabbittx.jpg");
 		carrottx = new TextureImage("carrottx2.jpg");
@@ -316,6 +323,7 @@ public class MyGame extends VariableFrameRateGame
 				0, 0, 1, 0,
 				pigPos.x(), pigPos.y(), pigPos.z(), 1
 		};
+		
 		PhysicsObject pigPhys = physicsEngine.addSphereObject(
 			physicsEngine.nextUID(),
 			0f, // Static
@@ -330,8 +338,11 @@ public class MyGame extends VariableFrameRateGame
 		initialScale = (new Matrix4f().scaling(0.1f));
 		chicken.setLocalTranslation(initialTranslation);
 		chicken.setLocalScale(initialScale);
+		
+		chickenController = new ChickenAnimationController(chicken, this); // Assign to field
+		chickenController.setEnabled(true);
 
-		// Add physics object for chicken
+ 		// Add physics object for chicken
 		Vector3f chickenPos = chicken.getWorldLocation();
 		double[] chickenXform = {
 					1, 0, 0, 0,
@@ -345,7 +356,7 @@ public class MyGame extends VariableFrameRateGame
 				chickenXform,
 				0.3f // Radius
 			);
-		chicken.setPhysicsObject(chickenPhys);
+		chicken.setPhysicsObject(chickenPhys); 
 
 		rabbit = new GameObject(GameObject.root(), rabbitS, rabbittx);
 		initialTranslation = (new Matrix4f()).translation(0,0 ,2);
@@ -524,6 +535,9 @@ public class MyGame extends VariableFrameRateGame
 		setupNetworking();
 		inventory[0] = "Seed_Wheat";
 		inventoryCount = 1;
+		pigController = new PigAnimationController(pig, this);
+		pigController.setEnabled(true);
+
 
 
 		// ------------- initialize camera -------------
@@ -689,6 +703,10 @@ public class MyGame extends VariableFrameRateGame
 	@Override
 	public void update()
 	{
+		long currentTime = System.nanoTime();
+        deltaTime = (currentTime - lastUpdateTime) / 1_000_000f; // Convert nanoseconds to milliseconds
+        lastUpdateTime = currentTime;
+
 		if (!initializationComplete) {
             return; // Skip updates until initialization is complete
         }
@@ -706,7 +724,25 @@ public class MyGame extends VariableFrameRateGame
 			skyboxManager.setSkyboxByIndex(pendingSkyboxIndex);
 			pendingSkyboxIndex = null;
 		}	
+
+		if (chickenController != null) {
+			chickenController.update(deltaTime);
+		} else {
+			System.out.println("ChickenAnimationController is null!");
+		}
+
+		if (pigController != null) {
+			pigController.update(deltaTime);
+		}
+		((AnimatedShape) pig.getShape()).updateAnimation();
+
+
 		
+		for (PlantAnimationController controller : plantControllers) {
+			controller.update(deltaTime);
+		}
+		
+
 		// Handle terrain height adjustment only if physics is not active
 		if (terr != null && !avatarPhysicsActive && !isFaceDown) {
 			Vector3f loc = avatar.getWorldLocation();
@@ -1324,32 +1360,40 @@ public class MyGame extends VariableFrameRateGame
 		
 			
 			case KeyEvent.VK_E:
-				for (int i = 0; i < inventory.length; i++) {
-					if (inventory[i] != null && inventory[i].startsWith("Seed_")) {
-						String cropType = inventory[i].split("_")[1];
-						inventory[i] = null;
-						inventoryCount--;
-			
-						Vector3f forward = avatar.getWorldForwardVector().normalize();
-						Vector3f position = avatar.getWorldLocation().add(forward.mul(0.5f));
-			
-						GameObject planted = new GameObject(GameObject.root(), plantS, planttx);
-						planted.setLocalTranslation(new Matrix4f().translation(position.x(), 0, position.z()));
-						planted.setLocalScale(new Matrix4f().scaling(0.020f));
-			
-						double growTime = cropType.equals("Carrot") ? 45 : 30;
-						ObjShape targetShape = cropType.equals("Carrot") ? carrotS : wheatS;
-						TextureImage targetTexture = cropType.equals("Carrot") ? carrottx : wheattx;
-			
-						Crop crop = new Crop(cropType, growTime, targetShape, targetTexture);
-						crop.setPlantedObject(planted);
-						activeCrops.add(crop);
-			
-						compactInventory(); // Ensure inventory is compacted after removing seed
-						break;
+			for (int i = 0; i < inventory.length; i++) {
+				if (inventory[i] != null && inventory[i].startsWith("Seed_")) {
+					String cropType = inventory[i].split("_")[1];
+					inventory[i] = null;
+					inventoryCount--;
+		
+					Vector3f forward = avatar.getWorldForwardVector().normalize();
+					Vector3f position = avatar.getWorldLocation().add(forward.mul(0.5f));
+		
+					GameObject planted = new GameObject(GameObject.root(), plantS, planttx);
+					planted.setLocalTranslation(new Matrix4f().translation(position.x(), 0, position.z()));
+					planted.setLocalScale(new Matrix4f().scaling(0.020f));
+		
+					double growTime = cropType.equals("Carrot") ? 45 : 30;
+					ObjShape targetShape = cropType.equals("Carrot") ? carrotS : wheatS;
+					TextureImage targetTexture = cropType.equals("Carrot") ? carrottx : wheattx;
+		
+					Crop crop = new Crop(cropType, growTime, targetShape, targetTexture);
+					crop.setPlantedObject(planted);
+					activeCrops.add(crop);
+		
+					compactInventory(); // after removing seed
+		
+					// Only add a PlantAnimationController if the planted object has AnimatedShape
+					if (planted.getShape() instanceof AnimatedShape) {
+						PlantAnimationController plantController = new PlantAnimationController(planted);
+						plantControllers.add(plantController);
 					}
+		
+					break; // Only plant once per keypress
 				}
+			}
 			break;
+		
 		
 			case KeyEvent.VK_B:
 				if (marketMode == MarketMode.CHOOSING) {
@@ -1756,5 +1800,7 @@ public class MyGame extends VariableFrameRateGame
 		public GameObject getPig() { return pig; }
 		public GameObject getChicken() { return chicken; }
 		public boolean isFaceDown() { return isFaceDown; }
+		public float getDeltaTime() { return deltaTime ; }
+		public GameObject getTerr() { return terr;}
 		
 }
