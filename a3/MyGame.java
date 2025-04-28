@@ -3,6 +3,7 @@ package a3;
 import tage.*;
 import tage.shapes.*;
 import java.lang.Math;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -18,6 +19,9 @@ import java.io.IOException;
 import org.joml.*;
 import org.joml.sampling.BestCandidateSampling.Quad;
 
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLRunnable;
+
 import net.java.games.input.Event;
 import tage.input.*;
 import tage.input.action.AbstractInputAction;
@@ -29,6 +33,10 @@ import tage.nodeControllers.StretchController;
 import tage.physics.PhysicsEngine;
 import tage.physics.PhysicsObject;
 import tage.rml.Vector3;
+import com.jogamp.opengl.awt.GLCanvas;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLRunnable;
+import java.lang.reflect.Method;
 
 /**
  * MyGame is the main entry point for the game application and manages core gameplay mechanics.
@@ -58,7 +66,7 @@ public class MyGame extends VariableFrameRateGame
 	private double lastFrameTime, currFrameTime, elapsTime;
 
 	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan;
-	protected ObjShape dolS, linxS, linyS, linzS, ghostS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
+	protected ObjShape dolS, linxS, linyS, linzS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
 																wheatS, wateringcanS, waterCubeS;
 	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx;
 	private Light light1; 
@@ -70,7 +78,7 @@ public class MyGame extends VariableFrameRateGame
 	private CameraOrbit3D orbitController;
 	private Vector3f rightViewportOffset;
 	private Vector3f leftViewportOffset;
-    private TextureImage ghostT, hills, dayOneTerrain, dayTwoTerrain, dayThreeTerrain, dayFourTerrain, 
+    private TextureImage hills, dayOneTerrain, dayTwoTerrain, dayThreeTerrain, dayFourTerrain, 
 								eveningOneTerrain, eveningTwoTerrain, sunsetTerrain, nightTerrain;
 	private boolean linesVisible = true; 
 	private StretchController stretchController;
@@ -186,6 +194,9 @@ public class MyGame extends VariableFrameRateGame
 	{	
 		MyGame game = new MyGame(args[0], Integer.parseInt(args[1]), args[2]);
 		engine = new Engine(game);
+		game.loadShapes();
+		game.loadTextures();
+		
 		game.initializeSystem();
 		game.initializeLights();
 		game.game_loop();
@@ -196,56 +207,159 @@ public class MyGame extends VariableFrameRateGame
 	 */
 	@Override
 	public void loadShapes() {
-		dolS = new ImportedModel("dolphinHighPoly.obj");
-		pigS = new AnimatedShape("pig.rkm", "pig.rks");
-		chickenS = new AnimatedShape("chicken.rkm", "chicken.rks");		
-		rabbitS = new ImportedModel("rabbit.obj");
-		carrotS = new ImportedModel("carrot.obj");
-		homeS = new ImportedModel("home.obj");
-		marketS = new ImportedModel("market.obj");
-		plantS = new AnimatedShape("plant.rkm", "plant.rks");
-		wheatS = new ImportedModel("wheat.obj");
+		// 1) Dolphin
+		try {
+			dolS = new ImportedModel("dolphinHighPoly.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load dolphinHighPoly.obj: " + e.getMessage());
+			dolS = new Cube();
+		}
+		if (dolS.getVertices() == null || dolS.getVertices().length == 0) {
+			System.err.println("Dolphin model has no vertices — using Cube fallback");
+			dolS = new Cube();
+		}
 	
-		// Robustly load watering can
+		// 2) Pig
+		try {
+			pigS = new AnimatedShape("pig.rkm", "pig.rks");
+		} catch(Exception e) {
+			System.err.println("Failed to load pig animation: " + e.getMessage());
+			pigS = new Cube();
+		}
+		if (pigS.getVertices() == null || pigS.getVertices().length == 0) {
+			System.err.println("Pig shape has no vertices — using Cube fallback");
+			pigS = new Cube();
+		}
+	
+		// 3) Chicken
+		try {
+			chickenS = new AnimatedShape("chicken.rkm", "chicken.rks");
+		} catch(Exception e) {
+			System.err.println("Failed to load chicken animation: " + e.getMessage());
+			chickenS = new Cube();
+		}
+		if (chickenS.getVertices() == null || chickenS.getVertices().length == 0) {
+			System.err.println("Chicken shape has no vertices — using Cube fallback");
+			chickenS = new Cube();
+		}
+	
+		// 4) Rabbit
+		try {
+			rabbitS = new ImportedModel("rabbit.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load rabbit.obj: " + e.getMessage());
+			rabbitS = new Cube();
+		}
+		if (rabbitS.getVertices() == null || rabbitS.getVertices().length == 0) {
+			System.err.println("Rabbit model has no vertices — using Cube fallback");
+			rabbitS = new Cube();
+		}
+	
+		// 5) Carrot
+		try {
+			carrotS = new ImportedModel("carrot.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load carrot.obj: " + e.getMessage());
+			carrotS = new Cube();
+		}
+		if (carrotS.getVertices() == null || carrotS.getVertices().length == 0) {
+			System.err.println("Carrot model has no vertices — using Cube fallback");
+			carrotS = new Cube();
+		}
+	
+		// 6) Home
+		try {
+			homeS = new ImportedModel("home.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load home.obj: " + e.getMessage());
+			homeS = new Cube();
+		}
+		if (homeS.getVertices() == null || homeS.getVertices().length == 0) {
+			System.err.println("Home model has no vertices — using Cube fallback");
+			homeS = new Cube();
+		}
+	
+		// 7) Market
+		try {
+			marketS = new ImportedModel("market.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load market.obj: " + e.getMessage());
+			marketS = new Cube();
+		}
+		if (marketS.getVertices() == null || marketS.getVertices().length == 0) {
+			System.err.println("Market model has no vertices — using Cube fallback");
+			marketS = new Cube();
+		}
+	
+		// 8) Plant (for crops)
+		try {
+			plantS = new AnimatedShape("plant.rkm", "plant.rks");
+		} catch(Exception e) {
+			System.err.println("Failed to load plant animation: " + e.getMessage());
+			plantS = new Cube();
+		}
+		if (plantS.getVertices() == null || plantS.getVertices().length == 0) {
+			System.err.println("Plant shape has no vertices — using Cube fallback");
+			plantS = new Cube();
+		}
+	
+		// 9) Wheat
+		try {
+			wheatS = new ImportedModel("wheat.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load wheat.obj: " + e.getMessage());
+			wheatS = new Cube();
+		}
+		if (wheatS.getVertices() == null || wheatS.getVertices().length == 0) {
+			System.err.println("Wheat model has no vertices — using Cube fallback");
+			wheatS = new Cube();
+		}
+	
+		// 10) Watering can (you already had this but we include it here for completeness)
 		try {
 			wateringcanS = new ImportedModel("watercan.obj");
-			if (wateringcanS == null || 
-				wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0 ||
-				wateringcanS.getTexCoords() == null || wateringcanS.getTexCoords().length == 0 ||
-				wateringcanS.getNormals() == null || wateringcanS.getNormals().length == 0) {
-				System.err.println("Watering can model is invalid (null or empty vertices/texcoords/normals) - using Cube fallback");
-				wateringcanS = new Cube();
-			}
 		} catch (Exception e) {
-			System.err.println("Error loading watering can model: " + e.getMessage() + " - using Cube fallback");
+			System.err.println("Error loading watercan.obj: " + e.getMessage());
 			wateringcanS = new Cube();
 		}
-
-		try {
-            waterCubeS = new Sphere();
-            if (waterCubeS == null || 
-                waterCubeS.getVertices() == null || waterCubeS.getVertices().length == 0 ||
-                waterCubeS.getTexCoords() == null || waterCubeS.getTexCoords().length == 0 ||
-                waterCubeS.getNormals() == null || waterCubeS.getNormals().length == 0) {
-                System.err.println("Sphere shape is invalid - using Cube fallback");
-                waterCubeS = new Cube();
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading Sphere shape: " + e.getMessage() + " - using Cube fallback");
-            waterCubeS = new Cube();
-        }
+		if (wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0) {
+			System.err.println("Watering can has no vertices — using Cube fallback");
+			wateringcanS = new Cube();
+		}
 	
-		linxS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(10f, 0f, 0f));
-		linyS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(0f, 10f, 0f));
-		linzS = new Line(new Vector3f(0f, 0f, 0f), new Vector3f(0f, 0f, -10f));
-		ghostS = new Sphere();
+		// 11) Droplet sphere
+		try {
+			waterCubeS = new Sphere();
+		} catch (Exception e) {
+			System.err.println("Error creating Sphere: " + e.getMessage());
+			waterCubeS = new Cube();
+		}
+		if (waterCubeS.getVertices() == null || waterCubeS.getVertices().length == 0) {
+			System.err.println("Sphere shape has no vertices — using Cube fallback");
+			waterCubeS = new Cube();
+		}
+	
+		// 12) Axis lines
+		linxS = new Line(new Vector3f(0,0,0), new Vector3f(10,0,0));
+		linyS = new Line(new Vector3f(0,0,0), new Vector3f(0,10,0));
+		linzS = new Line(new Vector3f(0,0,0), new Vector3f(0,0,-10));
+	
+		// 13) Terrain
 		terrS = new TerrainPlane(1000);
-		borderShape = new Torus();
-		if (borderShape == null || borderShape.getVertices() == null || borderShape.getVertices().length == 0) {
-			System.err.println("Border shape failed to load correctly. Using Cube instead.");
+	
+		// 14) Border torus
+		try {
+			borderShape = new Torus();
+		} catch(Exception e) {
+			System.err.println("Error creating Torus: " + e.getMessage());
+			borderShape = new Cube();
+		}
+		if (borderShape.getVertices() == null || borderShape.getVertices().length == 0) {
+			System.err.println("Torus has no vertices — using Cube fallback");
 			borderShape = new Cube();
 		}
 	}
+	
     /**
      * Loads and assigns texture images to various objects in the game.
      * Includes textures for the dolphins & terrain.
@@ -527,6 +641,30 @@ public class MyGame extends VariableFrameRateGame
 	public void initializeGame()
 	{
 		System.out.println("Starting initializeGame...");
+		GLCanvas canvas = engine.getRenderSystem().getGLCanvas();
+		canvas.invoke(true, new GLRunnable() {
+			@Override
+			public boolean run(GLAutoDrawable drawable) {
+				try {
+					// 1) force all the VBOs
+					RenderSystem rs = engine.getRenderSystem();
+					Method loadVBOs = rs.getClass().getDeclaredMethod("loadVBOs");
+					loadVBOs.setAccessible(true);
+					loadVBOs.invoke(rs);
+	
+					// 2) now generate & load the SSBO once and for all
+					LightManager lm = engine.getLightManager();
+					Method loadLights = lm.getClass()
+										 .getDeclaredMethod("loadLightsSSBOinitial");
+					loadLights.setAccessible(true);
+					loadLights.invoke(lm);
+				}
+				catch(Exception e) {
+					e.printStackTrace();
+				}
+				return true;    // JOGL: we’re done
+			}
+		});
 		lastFrameTime = System.currentTimeMillis();
 		currFrameTime = System.currentTimeMillis();
 		elapsTime = 0.0;
@@ -1614,11 +1752,11 @@ public class MyGame extends VariableFrameRateGame
 	/**
 	 * Retrieves the shape used for representing ghost avatars (other players).
 	*/
-	public ObjShape getGhostShape() { return ghostS; }
+	public ObjShape getGhostShape() { return rabbitS; }
 	/**
 	 * Retrieves the texture assigned to ghost avatars (if any).
 	*/
-	public TextureImage getGhostTexture() { return ghostT; }
+	public TextureImage getGhostTexture() { return rabbittx; }
 	/**
 	 * Provides access to the {@link GhostManager}, which handles ghost avatar tracking and updates.
 	*/

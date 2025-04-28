@@ -95,6 +95,18 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     broadcastSkyboxChange(currentSkyboxIndex);
                 break;
 
+                case "rotate":
+                    // tokens: 0="rotate", 1=UUID, 2=x,3=y,4=z,5=w
+                    if (msgTokens.length < 6) {
+                        System.out.println("[Server] ERROR: Rotate message too short: " + message);
+                        break;
+                    }
+                    UUID clientID2 = UUID.fromString(msgTokens[1]);
+                    // pull the four components back into a String[] so our helper can broadcast them
+                    String[] rot = { msgTokens[2], msgTokens[3], msgTokens[4], msgTokens[5] };
+                    sendRotateMessages(clientID2, rot);
+                break;
+
                 default:
                     System.out.println("[Server] Unknown message type: " + msgTokens[0]);
                     break;
@@ -250,6 +262,18 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             e.printStackTrace();
         }
     }
+
+    public void sendRotateMessages(UUID clientID, String[] rot) {
+        try {
+            String msg = String.join(",", 
+                "rotate",
+                clientID.toString(),
+                rot[0], rot[1], rot[2], rot[3]
+            );
+            forwardPacketToAll(msg, clientID);
+        } catch(IOException e) { e.printStackTrace(); }
+    }
+    
     
     
 }

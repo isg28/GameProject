@@ -5,7 +5,8 @@ import java.util.UUID;
 import java.util.Vector;
 import java.util.Iterator;
 
-import org.joml.Matrix4f;  
+import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import tage.ObjShape;
 import tage.TextureImage;
@@ -43,16 +44,15 @@ public class GhostManager {
      * @throws IOException if the shape or texture loading fails.
     */
     public void createGhost(UUID id, Vector3f p) throws IOException {
-        ObjShape s = game.rabbitS;
-        TextureImage t = game.rabbittx;
+        ObjShape s = game.getGhostShape();
+        TextureImage t = game.getGhostTexture();
         GhostAvatar newAvatar = new GhostAvatar(id, s, t, p);
-        
-    
-        Matrix4f initialScale = new Matrix4f().scaling(0.25f);
-        newAvatar.setLocalScale(initialScale);
-    
-        ghostAvs.add(newAvatar);
+      
+        // copy your player’s scale:
+        newAvatar.setLocalScale(new Matrix4f(game.getAvatar().getLocalScale()));
+      ghostAvs.add(newAvatar);
     }
+      
 
     /**
      * Removes a ghost avatar from the scene and internal list.
@@ -101,5 +101,18 @@ public class GhostManager {
             }
         }
     }
+    public GhostAvatar getGhostAvatar(UUID id) {
+        return findAvatar(id);
+    }
     
+    /**  
+     * Updates a ghost’s orientation.  
+     */
+    public void updateGhostRotation(UUID id, Quaternionf q) {
+        GhostAvatar ghost = findAvatar(id);
+        if (ghost != null) {
+            Matrix4f m = new Matrix4f().rotation(q);
+            ghost.setLocalRotation(m);
+        }
+    }
 }

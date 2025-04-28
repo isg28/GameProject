@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import a3.GhostManager;
@@ -136,6 +137,16 @@ public class ProtocolClient extends GameConnectionClient {
                     game.setPendingSkyboxIndex(index);
                 }
             break;
+            case "rotate":
+                if (msgTokens.length < 6) break;
+                UUID rid = UUID.fromString(msgTokens[1]);
+                float rx = Float.parseFloat(msgTokens[2]);
+                float ry = Float.parseFloat(msgTokens[3]);
+                float rz = Float.parseFloat(msgTokens[4]);
+                float rw = Float.parseFloat(msgTokens[5]);
+                ghostManager.updateGhostRotation(rid, new Quaternionf(rx, ry, rz, rw));
+            break;
+
 
     
             default:
@@ -220,6 +231,21 @@ public class ProtocolClient extends GameConnectionClient {
         try {
             sendPacket("skybox," + index);
         } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    /**  
+     * Sends a rotation update to the server indicating this client's new avatar orientation.  
+     */
+    public void sendRotateMessage(Quaternionf q) {
+        try {
+            String message = String.format(
+                "rotate,%s,%.6f,%.6f,%.6f,%.6f",
+                id.toString(),
+                q.x, q.y, q.z, q.w
+            );
+            sendPacket(message);
+        } catch(IOException e) {
             e.printStackTrace();
         }
     }

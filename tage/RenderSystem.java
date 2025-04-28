@@ -3,7 +3,19 @@ import java.nio.*;
 import javax.swing.*;
 import java.lang.Math;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.awt.*;
+
+import static com.jogamp.opengl.GL.GL_ARRAY_BUFFER;
+import static com.jogamp.opengl.GL.GL_COLOR_BUFFER_BIT;
+import static com.jogamp.opengl.GL.GL_DEPTH_BUFFER_BIT;
+import static com.jogamp.opengl.GL.GL_MULTISAMPLE;
+import static com.jogamp.opengl.GL.GL_SCISSOR_TEST;
+import static com.jogamp.opengl.GL.GL_STATIC_DRAW;
+import static com.jogamp.opengl.GL.GL_TEXTURE0;
+import static com.jogamp.opengl.GL.GL_TEXTURE_2D;
+import static com.jogamp.opengl.GL2ES3.GL_STATIC_READ;
+import static com.jogamp.opengl.GL3ES3.GL_SHADER_STORAGE_BUFFER;
 import static com.jogamp.opengl.GL4.*;
 import com.jogamp.opengl.*;
 import com.jogamp.opengl.util.*;
@@ -57,7 +69,7 @@ public class RenderSystem extends JFrame implements GLEventListener
 	private int screenSizeX, screenSizeY;
 
 	private ArrayList<TextureImage> textures = new ArrayList<TextureImage>();
-	private ArrayList<ObjShape> shapes = new ArrayList<ObjShape>();
+	private CopyOnWriteArrayList<ObjShape>  shapes   = new CopyOnWriteArrayList<>();
 	private LinkedHashMap<String, Viewport> viewportList = new LinkedHashMap<String, Viewport>();
 
 	private int canvasWidth, canvasHeight;

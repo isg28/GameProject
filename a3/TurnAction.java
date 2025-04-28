@@ -94,6 +94,11 @@ public class TurnAction extends AbstractInputAction
                 pitchSideDolphin(-rotationAmount); 
             }
         }
+        Quaternionf worldQ = new Quaternionf();
+        new Matrix4f(av.getLocalRotation()).getNormalizedRotation(worldQ);
+
+        // send it to everyone else
+        game.getProtocolClient().sendRotateMessage(worldQ);
         
     }
 
