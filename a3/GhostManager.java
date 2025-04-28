@@ -8,6 +8,8 @@ import java.util.Iterator;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+
+import tage.GameObject;
 import tage.ObjShape;
 import tage.TextureImage;
 import tage.VariableFrameRateGame;
@@ -47,6 +49,10 @@ public class GhostManager {
         ObjShape s = game.getGhostShape();
         TextureImage t = game.getGhostTexture();
         GhostAvatar newAvatar = new GhostAvatar(id, s, t, p);
+        newAvatar.initWateringCan(
+            game.getWateringCanShape(),
+            game.getWateringCanTexture()
+        );
       
         // copy your player’s scale:
         newAvatar.setLocalScale(new Matrix4f(game.getAvatar().getLocalScale()));
@@ -115,4 +121,39 @@ public class GhostManager {
             ghost.setLocalRotation(m);
         }
     }
+    public void setGhostWatering(UUID id, boolean on) {
+        GhostAvatar g = findAvatar(id);
+        if (g != null) g.setWatering(on);
+    }
+
+    /** call each frame from MyGame.update() */
+    public void updateAllGhostCans() {
+        for (GhostAvatar g : ghostAvs) {
+            if (!g.isWatering()) continue;
+            GameObject can = g.getWateringCanObject();
+            // same offset logic as local:
+            Vector3f fwd   = can.getWorldForwardVector().normalize();
+            Vector3f right = can.getWorldRightVector().normalize();
+            Vector3f up    = can.getWorldUpVector().normalize();
+            Vector3f offset = fwd.mul(0.1f)
+                              .add(right.mul(0.1f))
+                              .add(up.mul(0.1f));
+            can.setLocalTranslation(new Matrix4f().translation(offset));
+            can.setLocalRotation(new Matrix4f());
+        }
+    }
+
+    /** call each frame from MyGame.update() */
+    public void updateAllGhostDroplets(float dtSec) {
+        UUID me = game.getProtocolClient().getClientId();
+        for (GhostAvatar g : ghostAvs) {
+           if (g.getId().equals(me))
+               continue;
+            g.updateDroplets(game.getPhysicsEngine(), dtSec, game.getWaterCubeShape());
+        }
+    }
+    
+    
+    
+    
 }

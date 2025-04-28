@@ -1224,6 +1224,8 @@ public class MyGame extends VariableFrameRateGame
 	// if you still need seconds for spawnTimer:
 	float dtSec = dtMs * 0.001f;
 	spawnTimer += dtSec;
+	gm.updateAllGhostCans();
+    gm.updateAllGhostDroplets(dtSec);
 
     // ==== 3) DROPLET→GROUND BOUNCE & LIFETIME ====
 
@@ -1547,13 +1549,14 @@ public class MyGame extends VariableFrameRateGame
 				}
 			break;
 			case KeyEvent.VK_SPACE:
-				isWatering = !isWatering;
-				if (isWatering) {
-					shouldAttachWateringCan = true;
-				} else {
-					shouldDetachWateringCan = true;
-				}
-            break;
+			isWatering = !isWatering;
+			if (protClient != null && isConnected) {
+				protClient.sendWateringMessage(isWatering);
+			}
+			if (isWatering)      shouldAttachWateringCan = true;
+			else                 shouldDetachWateringCan = true;
+			break;
+		
 		
 		}
 		super.keyPressed(e);
@@ -1928,6 +1931,26 @@ public class MyGame extends VariableFrameRateGame
 		hasBouncedOffPlant.add(false);
 		
 		}
+		/**
+		 * Allows GhostManager to grab the watering-can shape.
+		 */
+		public ObjShape getWateringCanShape() { 
+			return wateringcanS; 
+		}
+
+		/**
+		 * Allows GhostManager to grab the watering can texture.
+		 */
+		public TextureImage getWateringCanTexture() { 
+			return wateringcantx; 
+		}
+        /** so GhostManager can spawn droplets */
+		public ObjShape getWaterCubeShape() {
+			return waterCubeS;
+		}
+	
+
+
 		public GameObject getHome()   { return home; }
 		public GameObject getMarket() { return market; }
 		public PhysicsEngine getPhysicsEngine() { return physicsEngine; }

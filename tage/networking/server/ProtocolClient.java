@@ -147,6 +147,17 @@ public class ProtocolClient extends GameConnectionClient {
                 ghostManager.updateGhostRotation(rid, new Quaternionf(rx, ry, rz, rw));
             break;
 
+            case "water":
+            UUID remoteID2 = UUID.fromString(msgTokens[1]);
+            boolean turningOn = msgTokens[2].equals("1");
+            // ignore your own watering messages
+            if (remoteID2.equals(id))
+                break;
+            ghostManager.setGhostWatering(remoteID2, turningOn);
+            break;
+        
+        
+
 
     
             default:
@@ -249,4 +260,20 @@ public class ProtocolClient extends GameConnectionClient {
             e.printStackTrace();
         }
     }
+    // new helper in ProtocolClient
+    public void sendWateringMessage(boolean starting) {
+        try {
+            // "water,<UUID>,1" when starting; "water,<UUID>,0" when stopping
+            sendPacket("water," + id + "," + (starting ? "1" : "0"));
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+    }
+    /** 
+     * Allows other classes to know this client’s UUID
+     */
+    public UUID getClientId() {
+        return id;
+    }
+
 }

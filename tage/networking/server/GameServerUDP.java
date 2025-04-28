@@ -94,9 +94,21 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     currentSkyboxIndex = Integer.parseInt(msgTokens[1]);
                     broadcastSkyboxChange(currentSkyboxIndex);
                 break;
+                case "water":
+                    UUID cid   = UUID.fromString(msgTokens[1]);
+                    // msgTokens[2] is the 1 or 0, but the server just relays it
+                    try {
+                        forwardPacketToAll(message, cid);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                break;
+            
+            
+
 
                 case "rotate":
-                    // tokens: 0="rotate", 1=UUID, 2=x,3=y,4=z,5=w
+                    // tokens: 0=rotate, 1=UUID, 2=x,3=y,4=z,5=w
                     if (msgTokens.length < 6) {
                         System.out.println("[Server] ERROR: Rotate message too short: " + message);
                         break;
