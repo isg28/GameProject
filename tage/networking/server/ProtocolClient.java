@@ -185,6 +185,16 @@ public class ProtocolClient extends GameConnectionClient {
                     String type2 = msgTokens[6];
                     ghostManager.ghostGrow(who, cropId2, new Vector3f(gx, gy, gz), type2);
                 break;
+            case "beeAttack":
+                UUID target = UUID.fromString(msgTokens[1]);
+                if ( target.equals(id) ) {   // only react if it’s you
+                  float dx = Float.parseFloat(msgTokens[2]);
+                  float dy = Float.parseFloat(msgTokens[3]);
+                  float dz = Float.parseFloat(msgTokens[4]);
+                  game.applyBeeKnockback(new Vector3f(dx, dy, dz));
+                }
+            break;
+            
             
               
 
@@ -321,7 +331,6 @@ public class ProtocolClient extends GameConnectionClient {
                                     type);
         sendPacket(msg);
     }
-    
     
 
 }

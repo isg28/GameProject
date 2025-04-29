@@ -1,5 +1,7 @@
 package tage;
 import tage.*;
+import tage.nodeControllers.OrbitAroundController;
+
 import java.util.*;
 
 /**
@@ -17,6 +19,8 @@ public abstract class NodeController
 	boolean enabled = false;
 	long startTime, prevTime, curTime, elapsedTimeTotal, elapsedTimeTick;
 	private ArrayList<GameObject> targets = new ArrayList<GameObject>();
+	private volatile boolean isPursuingAvatar = false;
+	private OrbitAroundController orbitController;
 
 	/** Causes the controller to start functioning (starts calling "apply" at each frame). */
 	public void enable()
@@ -65,4 +69,8 @@ public abstract class NodeController
 
 	/** A node controller should override this function to specify what the controller does to its target object(s). */
 	public abstract void apply(GameObject t);
+	public void setOrbitController(OrbitAroundController controller) {
+		this.orbitController = controller;
+	}
+	
 }

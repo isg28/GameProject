@@ -26,6 +26,7 @@ import net.java.games.input.Event;
 import tage.input.*;
 import tage.input.action.AbstractInputAction;
 import tage.networking.IGameConnection.ProtocolType;
+import tage.networking.server.GameAIServerUDP;
 import tage.networking.server.ProtocolClient;
 import tage.nodeControllers.BouncingController;
 import tage.nodeControllers.OrbitAroundController;
@@ -139,7 +140,9 @@ public class MyGame extends VariableFrameRateGame
 	private float deltaTime = 0f; // Delta time in milliseconds
     private long lastUpdateTime = System.nanoTime();
 	private List<PlantAnimationController> plantControllers = new ArrayList<>();
-
+	private static MyGame instance;
+	private NPCcontroller npcCtrl;
+	private GameAIServerUDP aiServer;
 
 
 	/**
@@ -147,14 +150,18 @@ public class MyGame extends VariableFrameRateGame
     */
     public MyGame() {
         super();
+		instance = this;
         // Initialize physicsEngine in constructor
         physicsEngine = new tage.physics.JBullet.JBulletPhysicsEngine();
         physicsEngine.initSystem();
         physicsEngine.setGravity(new float[]{0f, -9.8f, 0f});
+		npcCtrl = new NPCcontroller(this);
     }
 	
     public MyGame(String serverAddress, int serverPort, String protocol) {
         super();
+		instance = this;
+
         gm = new GhostManager(this);
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
@@ -162,6 +169,8 @@ public class MyGame extends VariableFrameRateGame
             this.serverProtocol = ProtocolType.TCP;
         else
             this.serverProtocol = ProtocolType.UDP;
+
+		npcCtrl = new NPCcontroller(this);
         // Initialize physicsEngine in constructor
         physicsEngine = new tage.physics.JBullet.JBulletPhysicsEngine();
         physicsEngine.initSystem();
@@ -575,6 +584,7 @@ public class MyGame extends VariableFrameRateGame
 
 		((AnimatedShape) bee.getShape()).loadAnimation("FLY", "beeFly.rka");
 		((AnimatedShape) bee.getShape()).playAnimation("FLY", 2.0f, AnimatedShape.EndType.LOOP, 0);
+		npcCtrl.getNPC().setLocation(2, 0, 1);
 		
 		// current tree center
 		Vector3f treeCenter = tree.getWorldLocation();
@@ -584,6 +594,15 @@ public class MyGame extends VariableFrameRateGame
 		OrbitAroundController beeController = new OrbitAroundController(higherCenter, 0.6f, 0.0005f, bee);
 		engine.getSceneGraph().addNodeController(beeController);
 		beeController.enable();
+		npcCtrl.setOrbitController(beeController);
+
+		// Initialize and start AI server
+        try {
+            aiServer = new GameAIServerUDP(serverPort + 1, npcCtrl);
+            npcCtrl.start(aiServer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
 		wateringcan = new GameObject(rabbit, wateringcanS, wateringcantx);
 		if (wateringcanS == null || wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0) {
@@ -706,6 +725,7 @@ public class MyGame extends VariableFrameRateGame
 				}
 				return true;    // JOGL: we’re done
 			}
+			
 		});
 		lastFrameTime = System.currentTimeMillis();
 		currFrameTime = System.currentTimeMillis();
@@ -1279,6 +1299,11 @@ public class MyGame extends VariableFrameRateGame
 	gm.updateAllGhostCans();
     gm.updateAllGhostDroplets(dtSec);
 	gm.updateAllGhostCrops();
+	if (npcCtrl.isPursuingAvatar()) {
+        NPC theBee = npcCtrl.getNPC();
+        Vector3f p = new Vector3f((float) theBee.getX(), (float) theBee.getY(), (float) theBee.getZ());
+        bee.setLocalTranslation(new Matrix4f().translation(p.x(), p.y(), p.z()));
+    }
 
 
     // ==== 3) DROPLET→GROUND BOUNCE & LIFETIME ====
@@ -2033,6 +2058,36 @@ public class MyGame extends VariableFrameRateGame
 				}
 			}
 		}
+		/** Called by ProtocolClient when you’re the target of a bee attack. */
+		public void applyBeeKnockback(Vector3f impulse) {
+			if (avatarPhysicsActive) return;   // don’t stack
+		
+			// 1) grab the rabbit’s current location
+			Vector3f rpos = rabbit.getWorldLocation();
+		
+			// 2) build a column-major identity transform with that translation at the end
+			double[] xform = {
+				1, 0, 0, 0,
+				0, 1, 0, 0,
+				0, 0, 1, 0,
+				rpos.x(), rpos.y(), rpos.z(), 1
+			};
+		
+			// 3) add the rabbit’s physics body at that spot
+			PhysicsObject phys = physicsEngine.addSphereObject(
+				physicsEngine.nextUID(),
+				1.0f,    // mass
+				xform,
+				0.3f     // radius
+			);
+			rabbit.setPhysicsObject(phys);
+			avatarPhysicsObject = phys;
+			avatarPhysicsActive = true;
+			physicsActivateTime = System.currentTimeMillis();
+		
+			// 4) finally, apply your knock-back impulse
+			phys.setLinearVelocity(new float[]{ impulse.x, impulse.y, impulse.z });
+		}
 
 		public GameObject getHome()   { return home; }
 		public GameObject getMarket() { return market; }
@@ -2046,5 +2101,7 @@ public class MyGame extends VariableFrameRateGame
 		public boolean isFaceDown() { return isFaceDown; }
 		public float getDeltaTime() { return deltaTime ; }
 		public GameObject getTerr() { return terr;}
+		public static  MyGame getInstance() { return instance; }
+		public GameObject getBee() { return bee; }
 		
 }
