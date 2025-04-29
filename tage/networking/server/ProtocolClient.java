@@ -155,8 +155,38 @@ public class ProtocolClient extends GameConnectionClient {
                 break;
             ghostManager.setGhostWatering(remoteID2, turningOn);
             break;
-        
-        
+
+            case "plant":
+                UUID pId    = UUID.fromString(msgTokens[1]);
+                float px    = Float.parseFloat(msgTokens[2]),
+                    py    = Float.parseFloat(msgTokens[3]),
+                    pz    = Float.parseFloat(msgTokens[4]);
+                UUID cropId = UUID.fromString(msgTokens[5]);
+                String type = msgTokens[6];
+                game.getGhostManager().ghostPlant(pId, cropId, new Vector3f(px,py,pz), type);
+            break;
+
+            case "harvest":
+                UUID hSrc    = UUID.fromString(msgTokens[1]);
+                UUID cropId1 = UUID.fromString(msgTokens[2]);
+                // first let ghosts disappear:
+                game.getGhostManager().ghostHarvest(hSrc, cropId1);
+                game.onCropHarvested(cropId1);
+            break;
+    
+            
+                case "grow":
+                    // tokens: 0="grow", 1=who, 2=cropId, 3=x,4=y,5=z,6=type
+                    UUID who    = UUID.fromString(msgTokens[1]);
+                    UUID cropId2 = UUID.fromString(msgTokens[2]);
+                    float gx = Float.parseFloat(msgTokens[3]);
+                    float gy = Float.parseFloat(msgTokens[4]);
+                    float gz = Float.parseFloat(msgTokens[5]);
+                    String type2 = msgTokens[6];
+                    ghostManager.ghostGrow(who, cropId2, new Vector3f(gx, gy, gz), type2);
+                break;
+            
+              
 
 
     
@@ -275,5 +305,23 @@ public class ProtocolClient extends GameConnectionClient {
     public UUID getClientId() {
         return id;
     }
+    public void sendPlantMessage(Vector3f pos, String cropId, String type) throws IOException {
+        sendPacket("plant,"+id+","+pos.x+","+pos.y+","+pos.z+","+cropId+","+type);
+    }
+    public void sendHarvestMessage(String cropId) throws IOException {
+        sendPacket("harvest,"+id+","+cropId);
+    }
+    /** tell all clients this crop has matured into carrot/wheat */
+    public void sendGrowMessage(String cropId, Vector3f pos, String type) throws IOException {
+        // format:  grow,<you>,<cropId>,<x>,<y>,<z>,<type>
+        String msg = String.format("grow,%s,%s,%.3f,%.3f,%.3f,%s",
+                                    id.toString(),
+                                    cropId,
+                                    pos.x, pos.y, pos.z,
+                                    type);
+        sendPacket(msg);
+    }
+    
+    
 
 }

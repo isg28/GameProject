@@ -98,7 +98,7 @@ public class MyGame extends VariableFrameRateGame
 	private int coins = 10;
 	private String[] inventory = new String[5];
 	private int inventoryCount = 0;
-	private List<Crop> activeCrops = new ArrayList<>();
+	List<Crop> activeCrops = new ArrayList<>();
 	private Vector3f plantedPos = new Vector3f(0, 0, -2); // Just an example location
 	private boolean isBuyingSeeds = false;
 	private String selectedSeedType = "";
@@ -1151,7 +1151,18 @@ public class MyGame extends VariableFrameRateGame
 		
 		// Update crops
 		for (Crop crop : activeCrops) {
+			boolean wasReady = crop.isReadyToHarvest();
 			crop.update();
+		    // if it has just become ready, notify the server:
+			if (!wasReady && crop.isReadyToHarvest() && protClient!=null && isConnected) {
+				Vector3f wp = crop.getPlantedObject().getWorldLocation();
+			    try {
+			        protClient.sendGrowMessage(crop.getId().toString(),
+			                                              wp, crop.getType());
+			    } catch(IOException ex) {
+			        ex.printStackTrace();
+		       }
+			}
 		}
 
 		// Process crop removals and object disabling
@@ -1226,6 +1237,8 @@ public class MyGame extends VariableFrameRateGame
 	spawnTimer += dtSec;
 	gm.updateAllGhostCans();
     gm.updateAllGhostDroplets(dtSec);
+	gm.updateAllGhostCrops();
+
 
     // ==== 3) DROPLET→GROUND BOUNCE & LIFETIME ====
 
@@ -1479,6 +1492,14 @@ public class MyGame extends VariableFrameRateGame
 					p.getRenderStates().disableRendering();
 					nearest.markHarvested();
 					inventory[inventoryCount++] = nearest.getType();
+					if (protClient!=null && isConnected) {
+						try {
+							protClient.sendHarvestMessage(nearest.getId().toString());
+						} catch (IOException ex) {
+							ex.printStackTrace();
+						}
+					}
+					
 					System.out.println("Harvested " + nearest.getType());
 				} else if (nearest!=null) {
 					System.out.println("Inventory full!");
@@ -1528,6 +1549,14 @@ public class MyGame extends VariableFrameRateGame
 						PlantAnimationController plantController = new PlantAnimationController(planted);
 						plantControllers.add(plantController);
 					}
+					if (protClient!=null && isConnected) {
+						try {
+							protClient.sendPlantMessage(position, crop.getId().toString(), cropType);
+						} catch (IOException ex) {
+							ex.printStackTrace();
+						}
+					}
+					
 		
 					break; // Only plant once per keypress
 				}
@@ -1556,7 +1585,6 @@ public class MyGame extends VariableFrameRateGame
 			if (isWatering)      shouldAttachWateringCan = true;
 			else                 shouldDetachWateringCan = true;
 			break;
-		
 		
 		}
 		super.keyPressed(e);
@@ -1948,8 +1976,22 @@ public class MyGame extends VariableFrameRateGame
 		public ObjShape getWaterCubeShape() {
 			return waterCubeS;
 		}
-	
-
+		/** 
+		 * Called whenever any client (you or someone else) harvests a crop.
+		 * Removes that crop from your local activeCrops list and hides its object.
+		 */
+		public void onCropHarvested(UUID cropId) {
+			Iterator<Crop> it = activeCrops.iterator();
+			while(it.hasNext()) {
+				Crop c = it.next();
+				if (c.getId().equals(cropId)) {
+					if (c.getPlantedObject() != null)
+						c.getPlantedObject().getRenderStates().disableRendering();
+					it.remove();
+					break;
+				}
+			}
+		}
 
 		public GameObject getHome()   { return home; }
 		public GameObject getMarket() { return market; }

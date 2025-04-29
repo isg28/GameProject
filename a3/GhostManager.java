@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.Iterator;
+import java.util.List;
 
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -13,6 +14,10 @@ import tage.GameObject;
 import tage.ObjShape;
 import tage.TextureImage;
 import tage.VariableFrameRateGame;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
+
 
 /**
  * Manages all ghost avatars in the multiplayer environment.
@@ -28,6 +33,7 @@ import tage.VariableFrameRateGame;
 public class GhostManager {
     private MyGame game;
     private Vector<GhostAvatar> ghostAvs = new Vector<>();
+    private Map<UUID, List<Crop>> ghostCrops = new HashMap<>();
 
     /**
      * Constructs a GhostManager linked to the current game instance.
@@ -152,6 +158,60 @@ public class GhostManager {
             g.updateDroplets(game.getPhysicsEngine(), dtSec, game.getWaterCubeShape());
         }
     }
+    /** place this somewhere in GhostManager **/
+    private GameObject createGhostCropObject(Vector3f pos) {
+        // use your game’s plant shape & texture
+        ObjShape plantShape   = game.plantS;
+        TextureImage plantTex = game.planttx;
+        GameObject planted = new GameObject(GameObject.root(), plantShape, plantTex);
+        planted.setLocalTranslation(new Matrix4f().translation(pos));
+        planted.setLocalScale(new Matrix4f().scaling(0.02f));
+        return planted;
+    }
+
+    
+    public void ghostPlant(UUID who, UUID cropId, Vector3f pos, String type) {
+        ObjShape     targetShape   = type.equals("Carrot") ? game.carrotS  : game.wheatS;
+        TextureImage targetTexture = type.equals("Carrot") ? game.carrottx : game.wheattx;
+        double       growTimeSec   = type.equals("Carrot") ? 45            : 30;
+        Crop c = new Crop(type, growTimeSec, targetShape, targetTexture);
+        c.setId(cropId);                     
+        GameObject obj = createGhostCropObject(pos);
+        c.setPlantedObject(obj);
+        ghostCrops.computeIfAbsent(who, k->new ArrayList<>()).add(c);
+        game.activeCrops.add(c);
+    }
+    
+    public void ghostHarvest(UUID who, UUID cropId) {
+        // find and remove that cropId no matter who planted it
+        for (List<Crop> list : ghostCrops.values()) {
+            Iterator<Crop> iter = list.iterator();
+            while(iter.hasNext()) {
+                Crop c = iter.next();
+                if (c.getId().equals(cropId)) {
+                    c.markHarvested();
+                    if (c.getPlantedObject() != null)
+                        c.getPlantedObject().getRenderStates().disableRendering();
+                    iter.remove();
+                    return;
+                }
+            }
+        }
+    }
+    public void ghostGrow(UUID who, UUID cropId, Vector3f pos, String type) {
+        List<Crop> list = ghostCrops.get(who);
+        if (list==null) return;
+        for(Crop c:list) if(c.getId().equals(cropId)) {
+          c.forceGrowNow();    // or: replace its plantedObject with grown shape/tex
+          break;
+        }
+    }
+    public void updateAllGhostCrops() {
+        for(List<Crop> list : ghostCrops.values())
+            for(Crop c : list)
+                c.update();
+    }
+    
     
     
     

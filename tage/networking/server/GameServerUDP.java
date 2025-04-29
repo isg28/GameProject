@@ -119,6 +119,26 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     sendRotateMessages(clientID2, rot);
                 break;
 
+                case "plant":
+                case "harvest":
+                    // simply relay to all other clients
+                    UUID src = UUID.fromString(msgTokens[1]);
+                    try {
+                        forwardPacketToAll(message, src);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    break;
+
+                    case "grow":
+                        // simply relay to all other clients
+                        UUID src1 = UUID.fromString(msgTokens[1]);
+                        try {
+                        forwardPacketToAll((String)o, src1);
+                        } catch(IOException e) { e.printStackTrace(); }
+                    break;
+
+
                 default:
                     System.out.println("[Server] Unknown message type: " + msgTokens[0]);
                     break;
@@ -139,10 +159,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             addClient(ci, clientID);
             sendJoinedMessage(clientID, true);
             System.out.println("[Server] Client " + clientID + " joined.");
-    
-            //  Broadcast the new client's presence to all existing players
-            String[] defaultPosition = { "0.0", "0.0", "0.0" };  
-            sendCreateMessages(clientID, defaultPosition);
     
             // Ask existing players to send their details to the new player
             sendWantsDetailsMessages(clientID);

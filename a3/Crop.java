@@ -1,5 +1,7 @@
 package a3;
 
+import java.util.UUID;
+
 import org.joml.Matrix4f;
 
 import tage.GameObject;
@@ -17,17 +19,18 @@ public class Crop {
     private TextureImage targetTexture; // Texture when ready (e.g., wheattx, carrottx)
     private boolean harvested = false;
     private boolean wateredOnce = false;
+    private UUID id;  
 
 
     public Crop(String type, double growTimeSeconds, ObjShape targetShape, TextureImage targetTexture) {
-        this.type = type;
+        this.id           = UUID.randomUUID();
+        this.type         = type;
         this.growTimeMillis = (long)(growTimeSeconds * 1000);
-        this.startTime = System.currentTimeMillis();
-        this.ready = false;
-        this.hasGrown = false;
-        this.targetShape = targetShape;
-        this.targetTexture = targetTexture;
+        this.startTime    = System.currentTimeMillis();
+        this.targetShape  = targetShape;
+        this.targetTexture= targetTexture;
     }
+
 
     public void update() {
         if (!ready) {
@@ -92,5 +95,22 @@ public class Crop {
     public void markHarvested() {
         harvested = true;
     }
-    
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+    /** immediately mature this crop (swap in mesh/texture) */
+    public void forceGrowNow() {
+        if (!ready) {
+            ready = true;
+            hasGrown = true;
+            System.out.println("Crop forced to grown state!");
+            if (plantedObject != null && targetShape != null && targetTexture != null) {
+                plantedObject.setShape(targetShape);
+                plantedObject.setTextureImage(targetTexture);
+                plantedObject.setLocalScale(
+                    new Matrix4f().scaling(type.equals("Carrot") ? 0.3f : 0.2f)
+                );
+            }
+        }
+    }
+
 }
