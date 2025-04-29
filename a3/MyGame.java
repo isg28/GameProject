@@ -28,6 +28,10 @@ import tage.input.action.AbstractInputAction;
 import tage.networking.IGameConnection.ProtocolType;
 import tage.networking.server.ProtocolClient;
 import tage.nodeControllers.BouncingController;
+import tage.nodeControllers.OrbitAroundController;
+import tage.nodeControllers.OrbitAroundController;
+import tage.nodeControllers.OrbitAroundController;
+import tage.nodeControllers.OrbitAroundController;
 import tage.nodeControllers.RotationController;
 import tage.nodeControllers.StretchController;
 import tage.physics.PhysicsEngine;
@@ -65,10 +69,11 @@ public class MyGame extends VariableFrameRateGame
 	private int counter=0;
 	private double lastFrameTime, currFrameTime, elapsTime;
 
-	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan;
+	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan, bee;
 	protected ObjShape dolS, linxS, linyS, linzS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
-																wheatS, wateringcanS, waterCubeS;
-	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx;
+																wheatS, wateringcanS, waterCubeS, beeS;
+	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx,
+																beetx;
 	private Light light1; 
 
 	private InputManager im;
@@ -326,6 +331,27 @@ public class MyGame extends VariableFrameRateGame
 			System.err.println("Watering can has no vertices — using Cube fallback");
 			wateringcanS = new Cube();
 		}
+		try {
+			treeS = new ImportedModel("tree.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load tree.obj: " + e.getMessage());
+			treeS = new Cube();
+		}
+		if (treeS.getVertices() == null || treeS.getVertices().length == 0) {
+			System.err.println("Tree model has no vertices — using Cube fallback");
+			treeS = new Cube();
+		}
+		try {
+			beeS = new AnimatedShape("bee.rkm", "bee.rks");
+		} catch(Exception e) {
+			System.err.println("Failed to load bee.obj: " + e.getMessage());
+			beeS = new Cube();
+		}
+		if (beeS.getVertices() == null || beeS.getVertices().length == 0) {
+			System.err.println("Bee model has no vertices — using Cube fallback");
+			beeS = new Cube();
+		}
+	
 	
 		// 11) Droplet sphere
 		try {
@@ -374,10 +400,11 @@ public class MyGame extends VariableFrameRateGame
 		carrottx = new TextureImage("carrottx2.jpg");
 		hometx = new TextureImage("hometx.jpg");
 		markettx = new TextureImage("markettx.jpg");
-		//treetx = new TextureImage("treetx.jpg");
+		treetx = new TextureImage("treetx2.jpg");
 		planttx = new TextureImage("planttx.jpg");
 		wheattx = new TextureImage("wheattx.jpg");
 		wateringcantx = new TextureImage("watercantx.jpg");
+		beetx = new TextureImage("beetx.jpeg");
 		
 		dayOneTerrain = new TextureImage("dayOneTerrain.jpg");
 		dayTwoTerrain = new TextureImage("dayTwoTerrain.jpg");
@@ -506,17 +533,6 @@ public class MyGame extends VariableFrameRateGame
 		);
 		home.setPhysicsObject(homePhys);
 
-
-/*     	tree = new GameObject(GameObject.root(), treeS, treetx);
-		initialTranslation = (new Matrix4f()).translation(1,0,-1);
-		tree.setLocalTranslation(initialTranslation);
-		initialScale = (new Matrix4f().scaling(0.1f));
-		tree.setLocalTranslation(initialTranslation);
-		tree.setLocalScale(initialScale);   
-
-		tree.getRenderStates().setTiling(1);
-		tree.getRenderStates().setTileFactor(4);  */
-
 		market = new GameObject(GameObject.root(), marketS, markettx);
 
 		initialTranslation = new Matrix4f().translation(-2, 0, -1);
@@ -544,6 +560,30 @@ public class MyGame extends VariableFrameRateGame
 			marketHalfExtents
 		);
 		market.setPhysicsObject(marketPhys);		
+
+		tree = new GameObject(GameObject.root(), treeS, treetx);
+		initialTranslation = new Matrix4f().translation(3, 0, 1);
+		tree.setLocalTranslation(initialTranslation);
+		initialScale = new Matrix4f().scaling(0.3f);
+		tree.setLocalScale(initialScale);
+
+		bee = new GameObject(GameObject.root(), beeS, beetx);
+		initialTranslation = new Matrix4f().translation(2, 0, 1);
+		bee.setLocalTranslation(initialTranslation);
+		initialScale = new Matrix4f().scaling(0.1f);
+		bee.setLocalScale(initialScale);
+
+		((AnimatedShape) bee.getShape()).loadAnimation("FLY", "beeFly.rka");
+		((AnimatedShape) bee.getShape()).playAnimation("FLY", 2.0f, AnimatedShape.EndType.LOOP, 0);
+		
+		// current tree center
+		Vector3f treeCenter = tree.getWorldLocation();
+		// raise the orbit height
+		Vector3f higherCenter = new Vector3f(treeCenter.x(), treeCenter.y() + 0.5f, treeCenter.z());
+		// orbit setup
+		OrbitAroundController beeController = new OrbitAroundController(higherCenter, 0.6f, 0.0005f, bee);
+		engine.getSceneGraph().addNodeController(beeController);
+		beeController.enable();
 
 		wateringcan = new GameObject(rabbit, wateringcanS, wateringcantx);
 		if (wateringcanS == null || wateringcanS.getVertices() == null || wateringcanS.getVertices().length == 0) {
@@ -626,6 +666,8 @@ public class MyGame extends VariableFrameRateGame
 			x.getRenderStates().enableRendering();
 			y.getRenderStates().enableRendering();
 			z.getRenderStates().enableRendering();
+			bee.getRenderStates().enableRendering();
+			tree.getRenderStates().enableRendering();
 		});
 
 		System.out.println("Finished buildObjects, activeCrops size: " + activeCrops.size());
@@ -873,8 +915,7 @@ public class MyGame extends VariableFrameRateGame
 			pigController.update(deltaTime);
 		}
 		((AnimatedShape) pig.getShape()).updateAnimation();
-
-
+		((AnimatedShape) bee.getShape()).updateAnimation();
 		
 		for (PlantAnimationController controller : plantControllers) {
 			controller.update(deltaTime);
