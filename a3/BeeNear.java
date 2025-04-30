@@ -22,7 +22,6 @@ public class BeeNear extends BTCondition {
         Vector3f beePos = new Vector3f((float)bee.getX(), (float)bee.getY(), (float)bee.getZ());
         float distance = rabbitPos.distance(beePos);
         boolean isNear = distance <= radius;
-        System.out.println("[BeeNear] Distance to avatar: " + distance + ", isNear: " + isNear);
         return isNear;
     }
 }

@@ -2,6 +2,8 @@ package a3;
 
 import java.util.UUID;
 import org.joml.Vector3f;
+
+import tage.GameObject;
 import tage.ai.behaviortrees.BTCompositeType;
 import tage.ai.behaviortrees.BTSequence;
 import tage.ai.behaviortrees.BehaviorTree;
@@ -32,9 +34,11 @@ public class NPCcontroller implements Runnable {
     }
 
     public Vector3f getPlayerPosition() {
-        System.out.println("[NPCcontroller] Avatar position: " + game.getPlayerPosition());
-        return game.getPlayerPosition();
+        GameObject avatar = game.getAvatar();
+        if (avatar == null) return new Vector3f(0, 0, 0);
+        return avatar.getWorldLocation();
     }
+    
 
     public void handleNearTiming(UUID c) {
         lastNearClient = c;
@@ -63,7 +67,6 @@ public class NPCcontroller implements Runnable {
     public void run() {
         long last = System.nanoTime();
         while (true) {
-            System.out.println("[NPCcontroller] Thread running");
             long now = System.nanoTime();
             float dt = (now - last) / 1_000_000f;
             last = now;

@@ -1,6 +1,11 @@
 package a3;
 
 import tage.*;
+import tage.audio.AudioResource;
+import tage.audio.AudioResourceType;
+import tage.audio.IAudioManager;
+import tage.audio.Sound;
+import tage.audio.SoundType;
 import tage.shapes.*;
 import java.lang.Math;
 import java.lang.reflect.Method;
@@ -143,6 +148,15 @@ public class MyGame extends VariableFrameRateGame
 	private static MyGame instance;
 	private NPCcontroller npcCtrl;
 	private GameAIServerUDP aiServer;
+	private IAudioManager audioMgr;
+	private Sound beeBuzzSound;
+	private boolean isBuzzing = false;
+	private Sound pigOinkSound;
+	private Sound chickenCluckSound;
+	private float pigSoundCooldown = 0;
+	private float chickenSoundCooldown = 0;
+	private Vector3f lastPigPos = new Vector3f();
+	private Vector3f lastChickenPos = new Vector3f();
 
 
 	/**
@@ -210,11 +224,41 @@ public class MyGame extends VariableFrameRateGame
 		engine = new Engine(game);
 		game.loadShapes();
 		game.loadTextures();
+		game.loadSounds();
 		
 		game.initializeSystem();
 		game.initializeLights();
 		game.game_loop();
+		game.beeBuzzSound.setLocation(game.bee.getWorldLocation());
+		game.beeBuzzSound.play();
+		
+
 	}
+	@Override
+	public void loadSounds() {
+		audioMgr = engine.getAudioManager();
+		AudioResource buzzRes = audioMgr.createAudioResource("beebuzz.wav", AudioResourceType.AUDIO_SAMPLE);
+		
+		beeBuzzSound = new Sound(buzzRes, SoundType.SOUND_EFFECT, 300, true); // 100 = max volume
+		beeBuzzSound.initialize(audioMgr);
+		
+		beeBuzzSound.setMaxDistance(20.0f);
+		beeBuzzSound.setMinDistance(1.0f);
+		beeBuzzSound.setRollOff(2.0f);
+
+		AudioResource pigRes = audioMgr.createAudioResource("pigoink.wav", AudioResourceType.AUDIO_SAMPLE);
+		AudioResource chickRes = audioMgr.createAudioResource("chickennoise.wav", AudioResourceType.AUDIO_SAMPLE);
+	
+		pigOinkSound = new Sound(pigRes, SoundType.SOUND_EFFECT, 300, false);
+		chickenCluckSound = new Sound(chickRes, SoundType.SOUND_EFFECT, 300, false);
+	
+		pigOinkSound.initialize(audioMgr);
+		chickenCluckSound.initialize(audioMgr);
+	
+		pigOinkSound.setMaxDistance(15.0f);
+		chickenCluckSound.setMaxDistance(15.0f);
+	}
+
 	/**
 	 * Loads 3D models for key scene elements, including the player avatar and axis lines.
 	 * This is where future shapes for crops, tools, and animals will be loaded.
@@ -1305,7 +1349,50 @@ public class MyGame extends VariableFrameRateGame
         bee.setLocalTranslation(new Matrix4f().translation(p.x(), p.y(), p.z()));
     }
 
+	float distToBee = avatar.getWorldLocation().distance(bee.getWorldLocation());
 
+	if (distToBee < 15.0f) {
+		if (!isBuzzing) {
+			beeBuzzSound.setLocation(bee.getWorldLocation());
+			beeBuzzSound.play();
+			isBuzzing = true;
+		} else {
+			beeBuzzSound.setLocation(bee.getWorldLocation()); // keep updating position
+		}
+	} else {
+		if (isBuzzing) {
+			beeBuzzSound.stop();
+			isBuzzing = false;
+		}
+	}
+	setEarParameters();
+	Vector3f currentPigPos = pig.getWorldLocation();
+	Vector3f currentChickPos = chicken.getWorldLocation();
+	
+	float pigMoved = currentPigPos.distance(lastPigPos);
+	float chickMoved = currentChickPos.distance(lastChickenPos);
+	
+	// Random oink if pig has moved a little and cooldown passed
+	if (pigSoundCooldown <= 0 && pigMoved > 0.01f && Math.random() < 0.01) {
+		pigOinkSound.setLocation(currentPigPos);
+		pigOinkSound.play();
+		pigSoundCooldown = 3000 + (float)(Math.random() * 2000);
+	}
+	
+	// Random cluck if chicken has moved a little
+	if (chickenSoundCooldown <= 0 && chickMoved > 0.01f && Math.random() < 0.01) {
+		chickenCluckSound.setLocation(currentChickPos);
+		chickenCluckSound.play();
+		chickenSoundCooldown = 3000 + (float)(Math.random() * 2000);
+	}
+	
+	// Update last positions
+	lastPigPos = new Vector3f(currentPigPos);
+	lastChickenPos = new Vector3f(currentChickPos);
+	if (pigSoundCooldown > 0) pigSoundCooldown -= dtMs;
+	if (chickenSoundCooldown > 0) chickenSoundCooldown -= dtMs;
+
+	
     // ==== 3) DROPLET→GROUND BOUNCE & LIFETIME ====
 
 	// 3) sync all droplets to their physics body transforms and handle cleanup
@@ -2088,6 +2175,12 @@ public class MyGame extends VariableFrameRateGame
 			// 4) finally, apply your knock-back impulse
 			phys.setLinearVelocity(new float[]{ impulse.x, impulse.y, impulse.z });
 		}
+		public void setEarParameters() {
+			Camera camera = (engine.getRenderSystem()).getViewport("MAIN").getCamera();
+			audioMgr.getEar().setLocation(avatar.getWorldLocation());
+			audioMgr.getEar().setOrientation(camera.getN(), new Vector3f(0.0f, 1.0f, 0.0f));
+		}
+		
 
 		public GameObject getHome()   { return home; }
 		public GameObject getMarket() { return market; }

@@ -33,6 +33,5 @@ public class OrbitAroundController extends NodeController {
         float y = center.y + bobbingHeight * (float)java.lang.Math.sin(bobbingPhase);
 
         go.setLocalTranslation(new Matrix4f().translation(x, y, z));
-        System.out.println("[OrbitAroundController] Applying orbit to " + go.getWorldLocation());
     }
 }
