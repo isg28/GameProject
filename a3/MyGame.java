@@ -558,6 +558,8 @@ public class MyGame extends VariableFrameRateGame
 		initialScale = (new Matrix4f().scaling(0.1f));
 		rabbit.setLocalTranslation(initialTranslation);
 		rabbit.setLocalScale(initialScale);
+		avatar = rabbit;
+
 
 		home = new GameObject(GameObject.root(), homeS, hometx);
 		initialTranslation = (new Matrix4f()).translation(-4,0,0);
@@ -716,8 +718,6 @@ public class MyGame extends VariableFrameRateGame
 			createBorderTorus(-15, 0, z); // left
 			createBorderTorus(15, 0, z);  // right
 		}
-		avatar = rabbit;
-
 		// Queue rendering enablement for after initialization
 		renderStateQueue.add(() -> {
 			pig.getRenderStates().enableRendering();
@@ -923,20 +923,48 @@ public class MyGame extends VariableFrameRateGame
 		System.out.println("Finished initializeGame, rendering enabled");
 	}
 
+	// In setupNetworking(), add client ID logging after ProtocolClient creation
 	private void setupNetworking() {
 		isConnected = false;
-		try { 
-			protClient = new ProtocolClient(InetAddress.getByName(serverAddress), serverPort, serverProtocol, this);
-		} catch (IOException e) { 
+		System.out.println("[MyGame] Attempting to initialize networking with serverAddress: " + serverAddress + ", serverPort: " + serverPort + ", protocol: " + serverProtocol);
+		
+		if (serverAddress == null || serverAddress.isEmpty()) {
+			System.out.println("[MyGame] Error: serverAddress is null or empty");
+			return;
+		}
+		if (serverPort <= 0 || serverPort > 65535) {
+			System.out.println("[MyGame] Error: Invalid serverPort: " + serverPort);
+			return;
+		}
+		
+		try {
+			InetAddress inetAddress = InetAddress.getByName(serverAddress);
+			protClient = new ProtocolClient(inetAddress, serverPort, serverProtocol, this);
+			System.out.println("[MyGame] ProtocolClient initialized with client ID: " + protClient.getClientId());
+			protClient.sendJoinMessage();
+			ProtocolClient aiClient = new ProtocolClient(inetAddress, serverPort + 1, serverProtocol, this);
+			aiClient.sendJoinMessage();
+			isConnected = true;
+			System.out.println("[MyGame] Successfully connected to server");
+		} catch (UnknownHostException e) {
+			System.out.println("[MyGame] Error: Unknown host - " + serverAddress);
+			e.printStackTrace();
+		} catch (IOException e) {
+			System.out.println("[MyGame] Error: Failed to initialize ProtocolClient - " + e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			System.out.println("[MyGame] Unexpected error during networking setup: " + e.getMessage());
 			e.printStackTrace();
 		}
 		
-		if (protClient == null) {
-			System.out.println("Missing protocol client! Unable to send network messages.");
-		} else {
-			protClient.sendJoinMessage();
-			isConnected = true;
+		if (protClient == null || !isConnected) {
+			System.out.println("[MyGame] Failed to establish network connection. protClient is null: " + (protClient == null));
 		}
+	}
+
+	// New method to log client ID from NPCcontroller
+	public void logNPCClientId(UUID clientId) {
+		System.out.println("[MyGame] NPCcontroller received client ID: " + clientId);
 	}
 	
 	/**
@@ -2147,34 +2175,53 @@ public class MyGame extends VariableFrameRateGame
 		}
 		/** Called by ProtocolClient when you’re the target of a bee attack. */
 		public void applyBeeKnockback(Vector3f impulse) {
-			if (avatarPhysicsActive) return;   // don’t stack
-		
-			// 1) grab the rabbit’s current location
-			Vector3f rpos = rabbit.getWorldLocation();
-		
-			// 2) build a column-major identity transform with that translation at the end
-			double[] xform = {
-				1, 0, 0, 0,
-				0, 1, 0, 0,
-				0, 0, 1, 0,
-				rpos.x(), rpos.y(), rpos.z(), 1
-			};
-		
-			// 3) add the rabbit’s physics body at that spot
-			PhysicsObject phys = physicsEngine.addSphereObject(
-				physicsEngine.nextUID(),
-				1.0f,    // mass
-				xform,
-				0.3f     // radius
-			);
-			rabbit.setPhysicsObject(phys);
-			avatarPhysicsObject = phys;
-			avatarPhysicsActive = true;
-			physicsActivateTime = System.currentTimeMillis();
-		
-			// 4) finally, apply your knock-back impulse
-			phys.setLinearVelocity(new float[]{ impulse.x, impulse.y, impulse.z });
+			System.out.println("[MyGame] applyBeeKnockback() invoked with impulse: " + impulse);
+			if (avatar == null) {
+				System.out.println("[MyGame] Error: avatar is null");
+				return;
+			}
+	
+			// Teleport to spawn point
+			float spawnX = 0f, spawnZ = 2f;
+			float spawnY = 0.1f;
+			if (terr.getHeightMap() != null) {
+				try {
+					spawnY = terr.getHeight(spawnX, spawnZ) + 0.1f;
+					System.out.println("[MyGame] Terrain height at (" + spawnX + ", " + spawnZ + ") = " + spawnY);
+				} catch (Exception e) {
+					System.out.println("[MyGame] Error getting terrain height: " + e.getMessage());
+					e.printStackTrace();
+				}
+			}
+			Vector3f newLocation = new Vector3f(spawnX, spawnY, spawnZ);
+			System.out.println("[MyGame] Teleporting avatar to: " + newLocation);
+	
+			// Disable physics to prevent interference
+			if (avatarPhysicsObject != null) {
+				physicsEngine.removeObject(avatarPhysicsObject.getUID());
+				avatar.setPhysicsObject(null);
+				avatarPhysicsObject = null;
+				avatarPhysicsActive = false;
+				System.out.println("[MyGame] Physics object removed");
+			}
+	
+			// Set position directly
+			avatar.setLocalLocation(newLocation);
+			Matrix4f uprightRotation = new Matrix4f().identity();
+			avatar.setLocalRotation(uprightRotation);
+			System.out.println("[MyGame] Avatar teleported to: " + avatar.getWorldLocation());
+	
+			// Ensure bee orbit is re-enabled
+			if (npcCtrl.getOrbitController() != null && !npcCtrl.getOrbitController().isEnabled()) {
+				npcCtrl.getOrbitController().enable();
+				System.out.println("[MyGame] Bee orbit re-enabled");
+			}
+	
+			// Reset face-down state
+			isFaceDown = false;
+			System.out.println("[MyGame] applyBeeKnockback() completed");
 		}
+
 		public void setEarParameters() {
 			Camera camera = (engine.getRenderSystem()).getViewport("MAIN").getCamera();
 			audioMgr.getEar().setLocation(avatar.getWorldLocation());

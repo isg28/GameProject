@@ -42,6 +42,7 @@ public class GameAIServerUDP extends GameConnectionServer<UUID>
             String msg = String.format("beeAttack,%s,%.3f,%.3f,%.3f",
                                        clientID.toString(), dx, dy, dz);
             sendPacket(msg, clientID);
+            System.out.println("[AI Server] Sending beeAttack to client " + clientID + ": " + msg);
         } catch(IOException e) {
             e.printStackTrace();
         }
