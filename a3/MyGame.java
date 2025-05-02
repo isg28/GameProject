@@ -14,9 +14,11 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 import java.util.UUID;
 import java.awt.event.*;
 import java.io.IOException;
@@ -80,7 +82,7 @@ public class MyGame extends VariableFrameRateGame
 																wheatS, wateringcanS, waterCubeS, beeS;
 	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx,
 																beetx;
-	private Light light1; 
+	private Light light1, chaseLight; 
 
 	private InputManager im;
 	private Camera mainCamera;
@@ -157,6 +159,7 @@ public class MyGame extends VariableFrameRateGame
 	private float chickenSoundCooldown = 0;
 	private Vector3f lastPigPos = new Vector3f();
 	private Vector3f lastChickenPos = new Vector3f();
+	private Map<UUID,Light> plantLights = new HashMap<>();
 
 
 	/**
@@ -204,13 +207,12 @@ public class MyGame extends VariableFrameRateGame
 		light1.setAmbient(0.3f, 0.3f, 0.3f);
 		engine.getSceneGraph().addLight(light1);
 	
-		for (int i = 0; i < 5; i++) {
-			Light dummyLight = new Light();
-			dummyLight.setLocation(new Vector3f(0, -10, 0)); 
-			dummyLight.setDiffuse(0, 0, 0);
-			dummyLight.setAmbient(0, 0, 0);
-			engine.getSceneGraph().addLight(dummyLight);
-		}
+        chaseLight = new Light();
+        chaseLight.setLocation(new Vector3f(0,5,0));    
+        chaseLight.setDiffuse(1,0,0);                    
+        chaseLight.setAmbient(0.3f,0,0);
+		chaseLight.disable();
+        engine.getSceneGraph().addLight(chaseLight);
 	}
 	
 
@@ -1243,6 +1245,16 @@ public class MyGame extends VariableFrameRateGame
 				
     // ==== 1) WATER→PLANT COLLISIONS ====
 
+		boolean chasing = npcCtrl.isPursuingAvatar();
+		if (chasing) {
+			// move the chaseLight to hover above the avatar
+			chaseLight.enable();
+			Vector3f avPos = avatar.getWorldLocation();
+			chaseLight.setLocation(new Vector3f(avPos.x(), avPos.y() + 2f, avPos.z()));
+		} else{
+			chaseLight.disable();
+		}
+
 		// inside update(), in your water–plant collision pass:
 		for (int i = 0; i < waterDroplets.size(); i++) {
 			PhysicsObject phys   = waterDropletPhysics.get(i);
@@ -1281,22 +1293,38 @@ public class MyGame extends VariableFrameRateGame
 			}
 		}
 
-		
-		// Update crops
 		for (Crop crop : activeCrops) {
 			boolean wasReady = crop.isReadyToHarvest();
 			crop.update();
-		    // if it has just become ready, notify the server:
-			if (!wasReady && crop.isReadyToHarvest() && protClient!=null && isConnected) {
-				Vector3f wp = crop.getPlantedObject().getWorldLocation();
-			    try {
-			        protClient.sendGrowMessage(crop.getId().toString(),
-			                                              wp, crop.getType());
-			    } catch(IOException ex) {
-			        ex.printStackTrace();
-		       }
+			// just turned ripe?
+			if (!wasReady && crop.isReadyToHarvest()) {
+				// spawn spotlight if we haven't already
+				UUID id = crop.getId();
+				if (!plantLights.containsKey(id)) {
+					GameObject plantGO = crop.getPlantedObject();
+					Vector3f pos1 = plantGO.getWorldLocation();
+					Light spot = new Light();
+					spot.setType(Light.LightType.SPOTLIGHT);
+					spot.setLocation(new Vector3f(pos1.x(), pos1.y()+1.5f, pos1.z()));
+					// narrow cone pointing down
+					spot.setDirection(new Vector3f(0,-1,0));
+					spot.setCutoffAngle(20f);       // tighter cone
+					spot.setOffAxisExponent(5f);    // sharper falloff
+
+					spot.setAmbient(0.05f, 0.1f, 0.05f);
+					spot.setDiffuse(0.5f, 1.0f, 0.5f);
+					spot.setSpecular(0.5f, 1.0f, 0.5f);
+					// attenuation so it only lights the plant
+					spot.setRange(4.0f);
+					spot.setConstantAttenuation(1.0f);
+					spot.setLinearAttenuation(0.2f);
+					spot.setQuadraticAttenuation(0.05f);
+					engine.getSceneGraph().addLight(spot);
+					plantLights.put(id, spot);
+				}
 			}
 		}
+		
 
 		// Process crop removals and object disabling
 		synchronized (activeCrops) {
@@ -1670,6 +1698,10 @@ public class MyGame extends VariableFrameRateGame
 					GameObject p = nearest.getPlantedObject();
 					synchronized(cropsToRemove)   { cropsToRemove.add(nearest); }
 					synchronized(objectsToDisable){ objectsToDisable.add(p);       }
+					Light light = plantLights.remove(nearest.getId());
+					if (light != null) {
+						engine.getSceneGraph().removeLight(light);
+					}
 					p.getRenderStates().disableRendering();
 					nearest.markHarvested();
 					inventory[inventoryCount++] = nearest.getType();
