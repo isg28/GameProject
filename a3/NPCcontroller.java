@@ -100,20 +100,10 @@ public class NPCcontroller implements Runnable {
                 isPursuingAvatar = false;
             }
 
-            // Log pursuit state
-            if (isPursuingAvatar) {
-                System.out.println("[NPCcontroller] Bee pursuing avatar, distance: " + distance + ", client ID: " + lastNearClient);
-            } else {
-                System.out.println("[NPCcontroller] Bee not pursuing, distance: " + distance + ", cooldown remaining: " + 
-                    Math.max(0, ATTACK_COOLDOWN_MS - (currentTime - lastAttackTime)) + "ms");
-            }
-
             // 2) Toggle orbit controller
             if (isPursuingAvatar && !wasPursuing && orbitController != null && orbitController.isEnabled()) {
-                System.out.println("[NPCcontroller] Disabling orbit controller");
                 orbitController.disable();
             } else if (!isPursuingAvatar && wasPursuing && orbitController != null && !orbitController.isEnabled()) {
-                System.out.println("[NPCcontroller] Enabling orbit controller");
                 orbitController.enable();
             }
 
@@ -132,7 +122,6 @@ public class NPCcontroller implements Runnable {
                     Vector3f beeGameObjectPos = bee.getWorldLocation();
                     npc.setLocation(beeGameObjectPos.x(), beeGameObjectPos.y(), beeGameObjectPos.z());
                 } else {
-                    System.out.println("[NPCcontroller] Warning: Bee GameObject is null");
                 }
             }
 

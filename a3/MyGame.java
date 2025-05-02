@@ -2180,47 +2180,42 @@ public class MyGame extends VariableFrameRateGame
 				System.out.println("[MyGame] Error: avatar is null");
 				return;
 			}
-	
-			// Teleport to spawn point
-			float spawnX = 0f, spawnZ = 2f;
-			float spawnY = 0.1f;
-			if (terr.getHeightMap() != null) {
-				try {
-					spawnY = terr.getHeight(spawnX, spawnZ) + 0.1f;
-					System.out.println("[MyGame] Terrain height at (" + spawnX + ", " + spawnZ + ") = " + spawnY);
-				} catch (Exception e) {
-					System.out.println("[MyGame] Error getting terrain height: " + e.getMessage());
-					e.printStackTrace();
-				}
+		
+			// 1) ensure we have a dynamic physics body
+			if (!avatarPhysicsActive) {
+				Vector3f p = avatar.getWorldLocation();
+				double[] xform = {
+					1,0,0,0,
+					0,1,0,0,
+					0,0,1,0,
+					p.x(),p.y(),p.z(),1
+				};
+				avatarPhysicsObject = physicsEngine.addSphereObject(
+					physicsEngine.nextUID(),
+					/* mass= */1f,
+					xform,
+					/* radius= */0.3f
+				);
+				avatar.setPhysicsObject(avatarPhysicsObject);
+				avatarPhysicsActive = true;
+				physicsActivateTime = System.currentTimeMillis();
+				System.out.println("[MyGame] Physics body created for avatar");
 			}
-			Vector3f newLocation = new Vector3f(spawnX, spawnY, spawnZ);
-			System.out.println("[MyGame] Teleporting avatar to: " + newLocation);
-	
-			// Disable physics to prevent interference
-			if (avatarPhysicsObject != null) {
-				physicsEngine.removeObject(avatarPhysicsObject.getUID());
-				avatar.setPhysicsObject(null);
-				avatarPhysicsObject = null;
-				avatarPhysicsActive = false;
-				System.out.println("[MyGame] Physics object removed");
-			}
-	
-			// Set position directly
-			avatar.setLocalLocation(newLocation);
-			Matrix4f uprightRotation = new Matrix4f().identity();
-			avatar.setLocalRotation(uprightRotation);
-			System.out.println("[MyGame] Avatar teleported to: " + avatar.getWorldLocation());
-	
-			// Ensure bee orbit is re-enabled
-			if (npcCtrl.getOrbitController() != null && !npcCtrl.getOrbitController().isEnabled()) {
-				npcCtrl.getOrbitController().enable();
-				System.out.println("[MyGame] Bee orbit re-enabled");
-			}
-	
-			// Reset face-down state
+		
+			float fx = impulse.x;
+			float fz = impulse.z;
+			avatarPhysicsObject.applyForce(
+				fx,           // X
+				0f,           // Y forced to zero
+				fz,           // Z
+				0f, 0f, 0f    // at center of mass
+			);
+			System.out.println("[MyGame] Applied force to avatar physics body: " + impulse);
+		
 			isFaceDown = false;
-			System.out.println("[MyGame] applyBeeKnockback() completed");
 		}
+		
+
 
 		public void setEarParameters() {
 			Camera camera = (engine.getRenderSystem()).getViewport("MAIN").getCamera();

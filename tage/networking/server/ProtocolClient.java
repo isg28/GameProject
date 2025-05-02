@@ -290,7 +290,6 @@ public class ProtocolClient extends GameConnectionClient {
         try {
             String message = "move," + id.toString() + "," + position.x + "," + position.y + "," + position.z;
             sendPacket(message);
-            System.out.println("[ProtocolClient] Sent move message: " + message);
         } catch (IOException e) {
             System.out.println("[ProtocolClient] ERROR: Failed to send move message: " + e.getMessage());
             e.printStackTrace();
@@ -305,7 +304,6 @@ public class ProtocolClient extends GameConnectionClient {
     public void sendSkyboxIndex(int index) {
         try {
             sendPacket("skybox," + index);
-            System.out.println("[ProtocolClient] Sent skybox message: skybox," + index);
         } catch (IOException e) {
             System.out.println("[ProtocolClient] ERROR: Failed to send skybox message: " + e.getMessage());
             e.printStackTrace();
@@ -323,7 +321,6 @@ public class ProtocolClient extends GameConnectionClient {
                 q.x, q.y, q.z, q.w
             );
             sendPacket(message);
-            System.out.println("[ProtocolClient] Sent rotate message: " + message);
         } catch (IOException e) {
             System.out.println("[ProtocolClient] ERROR: Failed to send rotate message: " + e.getMessage());
             e.printStackTrace();
@@ -337,7 +334,6 @@ public class ProtocolClient extends GameConnectionClient {
         try {
             String message = "water," + id + "," + (starting ? "1" : "0");
             sendPacket(message);
-            System.out.println("[ProtocolClient] Sent watering message: " + message);
         } catch (IOException e) {
             System.out.println("[ProtocolClient] ERROR: Failed to send watering message: " + e.getMessage());
             e.printStackTrace();
@@ -354,13 +350,11 @@ public class ProtocolClient extends GameConnectionClient {
     public void sendPlantMessage(Vector3f pos, String cropId, String type) throws IOException {
         String message = "plant," + id + "," + pos.x + "," + pos.y + "," + pos.z + "," + cropId + "," + type;
         sendPacket(message);
-        System.out.println("[ProtocolClient] Sent plant message: " + message);
     }
 
     public void sendHarvestMessage(String cropId) throws IOException {
         String message = "harvest," + id + "," + cropId;
         sendPacket(message);
-        System.out.println("[ProtocolClient] Sent harvest message: " + message);
     }
 
     /**
@@ -373,6 +367,15 @@ public class ProtocolClient extends GameConnectionClient {
                 pos.x, pos.y, pos.z,
                 type);
         sendPacket(msg);
-        System.out.println("[ProtocolClient] Sent grow message: " + msg);
     }
+    public void sendBeeAttack(UUID target, float dx, float dy, float dz) {
+        try {
+            String m = String.format("beeAttack,%s,%.3f,%.3f,%.3f",
+                                     target.toString(), dx, dy, dz);
+            sendPacket(m);
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
 }

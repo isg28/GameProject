@@ -137,6 +137,14 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                         forwardPacketToAll((String)o, src1);
                         } catch(IOException e) { e.printStackTrace(); }
                     break;
+                    case "beeAttack":
+                        UUID tgt = UUID.fromString(msgTokens[1]);
+                        try {
+                            sendPacket(message, tgt);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    break;
 
 
                 default:
