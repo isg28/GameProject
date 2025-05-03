@@ -83,7 +83,7 @@ public class MyGame extends VariableFrameRateGame
 																wheatS, wateringcanS, waterCubeS, beeS, radioS, lampS;
 	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx,
 																beetx, radiotx, lamptx;
-	private Light light1, chaseLight; 
+	private Light light1, chaseLight, lampLeftLight, lampRightLight; 
 
 	private InputManager im;
 	private Camera mainCamera;
@@ -213,6 +213,29 @@ public class MyGame extends VariableFrameRateGame
         chaseLight.setAmbient(0.3f,0,0);
 		chaseLight.disable();
         engine.getSceneGraph().addLight(chaseLight);
+
+		lampLeftLight = new Light();
+		lampLeftLight.setAmbient(0.2f, 0.1f, 0.05f);
+		lampLeftLight.setDiffuse(1.0f, 0.8f, 0.6f);
+		lampLeftLight.setSpecular(1.0f, 0.8f, 0.6f);
+		lampLeftLight.setRange(2.0f);
+		lampLeftLight.setConstantAttenuation(1.0f);
+		lampLeftLight.setLinearAttenuation(1.5f);
+		lampLeftLight.setQuadraticAttenuation(0.5f);
+		engine.getSceneGraph().addLight(lampLeftLight);
+
+		lampRightLight = new Light();
+		lampRightLight.setAmbient(0.2f, 0.1f, 0.05f);
+		lampRightLight.setDiffuse(1.0f, 0.8f, 0.6f);
+		lampRightLight.setSpecular(1.0f, 0.8f, 0.6f);
+		lampRightLight.setRange(2.0f);
+		lampRightLight.setConstantAttenuation(1.0f);
+		lampRightLight.setLinearAttenuation(1.5f);
+		lampRightLight.setQuadraticAttenuation(0.5f);
+		engine.getSceneGraph().addLight(lampRightLight);
+
+		lampLeftLight.setLocation( lampLeft .getWorldLocation() );
+		lampRightLight.setLocation( lampRight.getWorldLocation() );
 	}
 	
 
@@ -708,7 +731,6 @@ public class MyGame extends VariableFrameRateGame
 				mpos.z()
 			)
 		);
-		
 
 		tree = new GameObject(GameObject.root(), treeS, treetx);
 		initialTranslation = new Matrix4f().translation(3, 0, 1);
