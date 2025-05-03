@@ -151,9 +151,8 @@ public class MyGame extends VariableFrameRateGame
 	private NPCcontroller npcCtrl;
 	private GameAIServerUDP aiServer;
 	private IAudioManager audioMgr;
-	private Sound beeBuzzSound;
+	private Sound beeBuzzSound, pigOinkSound, wateringSound;
 	private boolean isBuzzing = false;
-	private Sound pigOinkSound;
 	private Sound chickenCluckSound;
 	private float pigSoundCooldown = 0;
 	private float chickenSoundCooldown = 0;
@@ -259,6 +258,21 @@ public class MyGame extends VariableFrameRateGame
 	
 		pigOinkSound.setMaxDistance(15.0f);
 		chickenCluckSound.setMaxDistance(15.0f);
+
+		AudioResource waterRes = audioMgr.createAudioResource(
+			"water.wav",
+			AudioResourceType.AUDIO_SAMPLE
+		);
+		wateringSound = new Sound(
+			waterRes,
+			SoundType.SOUND_EFFECT,
+			200,   
+			true   
+		);
+		wateringSound.initialize(audioMgr);
+		wateringSound.setMaxDistance(15.0f);
+		wateringSound.setMinDistance(1.0f);
+		wateringSound.setRollOff(2.0f);
 	}
 
 	/**
@@ -1489,6 +1503,11 @@ public class MyGame extends VariableFrameRateGame
             }
         }
     }
+	if (wateringSound != null && isWatering) {
+		// move the ear of the sound to the watering can’s world position
+		wateringSound.setLocation(wateringcan.getWorldLocation());
+	}
+	
 
     }
 	// Process packets received by the client from the server
@@ -1795,8 +1814,14 @@ public class MyGame extends VariableFrameRateGame
 			if (protClient != null && isConnected) {
 				protClient.sendWateringMessage(isWatering);
 			}
-			if (isWatering)      shouldAttachWateringCan = true;
-			else                 shouldDetachWateringCan = true;
+			if (isWatering) {
+				shouldAttachWateringCan = true;
+				wateringSound.setLocation(avatar.getWorldLocation());
+				wateringSound.play();
+			} else {
+				shouldDetachWateringCan = true;
+				wateringSound.stop();
+			}
 			break;
 		
 		}
