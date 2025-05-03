@@ -78,12 +78,12 @@ public class MyGame extends VariableFrameRateGame
 	private double lastFrameTime, currFrameTime, elapsTime;
 
 	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan, bee,
-																radio, lampLeft, lampRight;
+																radio, lampLeft, lampRight, torch;
 	protected ObjShape dolS, linxS, linyS, linzS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
-																wheatS, wateringcanS, waterCubeS, beeS, radioS, lampS;
+																wheatS, wateringcanS, waterCubeS, beeS, radioS, lampS, torchS;
 	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx,
-																beetx, radiotx, lamptx;
-	private Light light1, chaseLight, lampLeftLight, lampRightLight; 
+																beetx, radiotx, lamptx, torchtx;
+	private Light light1, chaseLight, lampLeftLight, lampRightLight, torchLight; 
 
 	private InputManager im;
 	private Camera mainCamera;
@@ -161,6 +161,8 @@ public class MyGame extends VariableFrameRateGame
 	private Vector3f lastChickenPos = new Vector3f();
 	private Map<UUID,Light> plantLights = new HashMap<>();
 	private boolean radioOn = false;
+	public static enum Tool { NONE, WATERING_CAN, TORCH }
+	private Tool activeTool = Tool.NONE;
 
 	/**
     * Constructs the game instance and initializes the game loop.
@@ -236,6 +238,19 @@ public class MyGame extends VariableFrameRateGame
 
 		lampLeftLight.setLocation( lampLeft .getWorldLocation() );
 		lampRightLight.setLocation( lampRight.getWorldLocation() );
+
+		torchLight = new Light();
+		torchLight.setType(Light.LightType.POSITIONAL);
+		torchLight.setAmbient(0.2f, 0.1f, 0.0f);
+		torchLight.setDiffuse(1.0f, 0.8f, 0.3f);
+		torchLight.setSpecular(1.0f, 0.8f, 0.3f);
+		torchLight.setRange(2.0f);
+		torchLight.setConstantAttenuation(1.0f);
+		torchLight.setLinearAttenuation(0.8f);
+		torchLight.setQuadraticAttenuation(0.2f);
+
+		torchLight.disable();             // start off
+		engine.getSceneGraph().addLight(torchLight);		
 	}
 	
 
@@ -484,6 +499,12 @@ public class MyGame extends VariableFrameRateGame
 			System.err.println("Lamp model has no vertices — using Cube fallback");
 			lampS = new Cube();
 		}
+		try {
+			torchS = new ImportedModel("torch.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load torch.obj: " + e.getMessage());
+			torchS = new Cube();
+		}		
 	
 		// 12) Axis lines
 		linxS = new Line(new Vector3f(0,0,0), new Vector3f(10,0,0));
@@ -527,6 +548,7 @@ public class MyGame extends VariableFrameRateGame
 		beetx = new TextureImage("beetx.jpeg");
 		radiotx = new TextureImage("radiotx.jpeg");
 		lamptx = new TextureImage("lamptx.jpeg");
+		torchtx = new TextureImage("torchtx.jpeg");
 		
 		dayOneTerrain = new TextureImage("dayOneTerrain.jpg");
 		dayTwoTerrain = new TextureImage("dayTwoTerrain.jpg");
@@ -737,6 +759,11 @@ public class MyGame extends VariableFrameRateGame
 		tree.setLocalTranslation(initialTranslation);
 		initialScale = new Matrix4f().scaling(0.3f);
 		tree.setLocalScale(initialScale);
+
+		torch = new GameObject(rabbit, torchS, torchtx);
+		torch.setLocalScale(new Matrix4f().scaling(0.7f));
+		torch.setLocalTranslation(new Matrix4f().translation(0.1f, 0.1f, 0.1f));
+		torch.getRenderStates().disableRendering();
 
 		bee = new GameObject(GameObject.root(), beeS, beetx);
 		initialTranslation = new Matrix4f().translation(2, 0, 1);
@@ -1163,6 +1190,27 @@ public class MyGame extends VariableFrameRateGame
 			wateringcan.setLocalTranslation(new Matrix4f().translation(offset));
 			wateringcan.setLocalRotation(new Matrix4f()); // Ensure no rotation
 		}
+		if (torch.getRenderStates().renderingEnabled()) {
+			Vector3f fwd   = rabbit.getWorldForwardVector().normalize();
+			Vector3f up    = rabbit.getWorldUpVector().normalize();
+			Vector3f right = rabbit.getWorldRightVector().normalize();
+		
+			Vector3f offset = new Vector3f(fwd).mul(0.05f)    
+								  .add(new Vector3f(up).mul(0.10f))     
+								  .add(new Vector3f(right).mul(0.05f)); 
+		
+			torch.setLocalTranslation(new Matrix4f().translation(offset));
+		
+			float yaw = (float)Math.atan2(fwd.x(), fwd.z());
+			torch.setLocalRotation(new Matrix4f().rotateY(yaw));
+		}
+		if (torch.getRenderStates().renderingEnabled()) {
+			torchLight.enable();
+			torchLight.setLocation(torch.getWorldLocation());
+		} else {
+			torchLight.disable();
+		}
+		
 
 		if (shouldResetSkybox && skyboxManager != null) {
 			skyboxManager.resetCycle();
@@ -1234,6 +1282,14 @@ public class MyGame extends VariableFrameRateGame
         int hudY = (int)((rightNormY + 0.15f * rightNormHeight) * windowHeight);
 
         (engine.getHUDmanager()).setHUD4(dispStr3, hud4Color, hudX, hudY);
+
+		String toolStr = "Tool: " + (activeTool == Tool.TORCH ? "Torch" :
+				activeTool == Tool.WATERING_CAN ? "Watering Can" :
+				"None");
+		engine.getHUDmanager().setHUD5(toolStr, new Vector3f(1f,1f,0f), 20, 140);
+
+		String instr = "Press 1 -> Watering Can   2 -> Torch   SPACE -> Use";
+		engine.getHUDmanager().setHUD13(instr, new Vector3f(1f,1f,1f), 20, 170);
 
 		// Build inventory string
 		StringBuilder inventoryStr = new StringBuilder("Inventory: ");
@@ -1655,6 +1711,11 @@ public class MyGame extends VariableFrameRateGame
 				break;
 			
 			case KeyEvent.VK_1:
+				if (!inMarketUI) {
+					activeTool = Tool.WATERING_CAN;
+					torch.getRenderStates().disableRendering();
+					wateringcan.getRenderStates().enableRendering();
+				}
 				if (isBuyingSeeds && coins >= 2) {
 					selectedSeedType = "Wheat";
 					addToInventory("Seed_Wheat");
@@ -1681,6 +1742,11 @@ public class MyGame extends VariableFrameRateGame
             break;
 
 			case KeyEvent.VK_2:
+				if (!inMarketUI) {
+					activeTool = Tool.TORCH;
+					wateringcan.getRenderStates().disableRendering();
+					torch.getRenderStates().enableRendering();
+				}
 				if (isBuyingSeeds && coins >= 5) {
 					selectedSeedType = "Carrot";
 					addToInventory("Seed_Carrot");
@@ -1927,20 +1993,32 @@ public class MyGame extends VariableFrameRateGame
 				}
 			break;
 			case KeyEvent.VK_SPACE:
-			isWatering = !isWatering;
-			if (protClient != null && isConnected) {
-				protClient.sendWateringMessage(isWatering);
-			}
-			if (isWatering) {
-				shouldAttachWateringCan = true;
-				wateringSound.setLocation(avatar.getWorldLocation());
-				wateringSound.play();
-			} else {
-				shouldDetachWateringCan = true;
-				wateringSound.stop();
-			}
-			break;
-		
+				switch(activeTool){
+					case WATERING_CAN:
+						isWatering = !isWatering;
+						if (protClient != null && isConnected) {
+							protClient.sendWateringMessage(isWatering);
+						}
+						if (isWatering) {
+							shouldAttachWateringCan = true;
+							wateringSound.setLocation(avatar.getWorldLocation());
+							wateringSound.play();
+						} else {
+							shouldDetachWateringCan = true;
+							wateringSound.stop();
+						}
+					break;
+					case TORCH:
+						if (torch.getRenderStates().renderingEnabled()) {
+							torch.getRenderStates().disableRendering();
+						} else {
+							torch.getRenderStates().enableRendering();
+						}
+					break;
+					default:
+						break;
+				}
+				break;
 		}
 		super.keyPressed(e);
 	}

@@ -29,9 +29,9 @@ public class HUDmanager
 	private Engine engine;
 
 	private String HUD1string, HUD2string, HUD3string, HUD4string, HUD5string, HUD6string, HUD7string, HUD8string, 
-									HUD9string, HUD10string, HUD11string, HUD12string;
+									HUD9string, HUD10string, HUD11string, HUD12string, HUD13string;
 	private float[] HUD1color, HUD2color, HUD3color, HUD4color, HUD5color, HUD6color, HUD7color, HUD8color, 
-									HUD9color, HUD10color, HUD11color, HUD12color;
+									HUD9color, HUD10color, HUD11color, HUD12color, HUD13color;
 	private int HUD1font = GLUT.BITMAP_TIMES_ROMAN_24;
 	private int HUD2font = GLUT.BITMAP_TIMES_ROMAN_24;
 	private int HUD3font = GLUT.BITMAP_TIMES_ROMAN_24;
@@ -45,9 +45,11 @@ public class HUDmanager
 	private int HUD10font = GLUT.BITMAP_TIMES_ROMAN_24;
 	private int HUD11font = GLUT.BITMAP_TIMES_ROMAN_24;
 	private int HUD12font = GLUT.BITMAP_TIMES_ROMAN_24;
+	private int HUD13font = GLUT.BITMAP_TIMES_ROMAN_24;
+
 
 	private int HUD1x, HUD1y, HUD2x, HUD2y, HUD3x, HUD3y, HUD4x, HUD4y, HUD5x, HUD5y, HUD6x, HUD6y, HUD7x, HUD7y, HUD8x, HUD8y,
-											HUD9x, HUD9y, HUD10x, HUD10y, HUD11x, HUD11y, HUD12x, HUD12y;;
+											HUD9x, HUD9y, HUD10x, HUD10y, HUD11x, HUD11y, HUD12x, HUD12y, HUD13x, HUD13y;
 
 	// The constructor is called by the engine, and should not be called by the game application.
 	// It initializes the two HUDs to empty strings.
@@ -66,6 +68,7 @@ public class HUDmanager
 		HUD10string = ""; 
 		HUD11string = ""; 
 		HUD12string = ""; 
+		HUD13string = ""; 
 
 		HUD1color = new float[3];
 		HUD2color = new float[3];
@@ -79,6 +82,7 @@ public class HUDmanager
 		HUD10color = new float[3];
 		HUD11color = new float[3];
 		HUD12color = new float[3];
+		HUD13color = new float[3];
 	}
 	
 	protected void setGLcanvas(GLCanvas g) { myCanvas = g; }
@@ -136,6 +140,10 @@ public class HUDmanager
 		gl4bc.glColor3f(HUD12color[0], HUD12color[1], HUD12color[2]);
 		gl4bc.glWindowPos2d (HUD12x, HUD12y);
 		glut.glutBitmapString(HUD12font, HUD12string);
+
+		gl4bc.glColor3f(HUD13color[0], HUD13color[1], HUD13color[2]);
+		gl4bc.glWindowPos2d (HUD13x, HUD13y);
+		glut.glutBitmapString(HUD13font, HUD13string);
 	}
 
 	/** sets HUD #1 to the specified text string, color, and location */
@@ -246,6 +254,15 @@ public class HUDmanager
 		HUD12x = x;
 		HUD12y = y;
 	}
+	/** sets HUD #13 to the specified text string, color, and location */
+	public void setHUD13(String string, Vector3f color, int x, int y) {
+		HUD13string = string;
+		HUD13color[0] = color.x();
+		HUD13color[1] = color.y();
+		HUD13color[2] = color.z();
+		HUD13x = x;
+		HUD13y = y;
+	}
 	
 
 	/** sets HUD #1 font - available fonts are listed above. */
@@ -279,4 +296,6 @@ public class HUDmanager
 	public void setHUD11font(int font) { HUD11font = font; }	
 	/** sets HUD #12 font - available fonts are listed above. */
 	public void setHUD12font(int font) { HUD12font = font; }
+	/** sets HUD #13 font - available fonts are listed above. */
+	public void setHUD13font(int font) { HUD13font = font; }
 }
