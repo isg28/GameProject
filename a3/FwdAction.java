@@ -111,8 +111,10 @@ public class FwdAction extends AbstractInputAction
 
             boolean isAnimalCollision = false;
 
+            Vector3f radioPos = game.getRadio().getWorldLocation();
             // Check home and market collisions
-            if (newPosition.distance(homePos) < blockRadius || newPosition.distance(marketPos) < blockRadius) {
+            if (newPosition.distance(homePos) < blockRadius || newPosition.distance(marketPos) < blockRadius || newPosition.distance(radioPos)  < blockRadius) 
+            {
                 PhysicsEngine physicsEngine = game.getPhysicsEngine();
                 Vector3f avatarPos = avatar.getWorldLocation();
 

@@ -77,11 +77,12 @@ public class MyGame extends VariableFrameRateGame
 	private int counter=0;
 	private double lastFrameTime, currFrameTime, elapsTime;
 
-	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan, bee;
+	protected GameObject dol, avatar, x, y, z, terr, pig, chicken, rabbit, carrot, home, tree, plant, market, wheat, wateringcan, bee,
+																radio, lampLeft, lampRight;
 	protected ObjShape dolS, linxS, linyS, linzS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
-																wheatS, wateringcanS, waterCubeS, beeS;
+																wheatS, wateringcanS, waterCubeS, beeS, radioS, lampS;
 	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx,
-																beetx;
+																beetx, radiotx, lamptx;
 	private Light light1, chaseLight; 
 
 	private InputManager im;
@@ -151,7 +152,7 @@ public class MyGame extends VariableFrameRateGame
 	private NPCcontroller npcCtrl;
 	private GameAIServerUDP aiServer;
 	private IAudioManager audioMgr;
-	private Sound beeBuzzSound, pigOinkSound, wateringSound;
+	private Sound beeBuzzSound, pigOinkSound, wateringSound, backgroundMusic;
 	private boolean isBuzzing = false;
 	private Sound chickenCluckSound;
 	private float pigSoundCooldown = 0;
@@ -159,7 +160,7 @@ public class MyGame extends VariableFrameRateGame
 	private Vector3f lastPigPos = new Vector3f();
 	private Vector3f lastChickenPos = new Vector3f();
 	private Map<UUID,Light> plantLights = new HashMap<>();
-
+	private boolean radioOn = false;
 
 	/**
     * Constructs the game instance and initializes the game loop.
@@ -251,7 +252,7 @@ public class MyGame extends VariableFrameRateGame
 		AudioResource chickRes = audioMgr.createAudioResource("chickennoise.wav", AudioResourceType.AUDIO_SAMPLE);
 	
 		pigOinkSound = new Sound(pigRes, SoundType.SOUND_EFFECT, 300, false);
-		chickenCluckSound = new Sound(chickRes, SoundType.SOUND_EFFECT, 300, false);
+		chickenCluckSound = new Sound(chickRes, SoundType.SOUND_EFFECT, 200, false);
 	
 		pigOinkSound.initialize(audioMgr);
 		chickenCluckSound.initialize(audioMgr);
@@ -266,13 +267,24 @@ public class MyGame extends VariableFrameRateGame
 		wateringSound = new Sound(
 			waterRes,
 			SoundType.SOUND_EFFECT,
-			200,   
+			50,   
 			true   
 		);
 		wateringSound.initialize(audioMgr);
 		wateringSound.setMaxDistance(15.0f);
 		wateringSound.setMinDistance(1.0f);
 		wateringSound.setRollOff(2.0f);
+
+		AudioResource bgRes = audioMgr.createAudioResource(
+		"backgroundMusic.wav",
+		AudioResourceType.AUDIO_STREAM
+		);
+		backgroundMusic = new Sound(bgRes, SoundType.SOUND_EFFECT, 50, true);
+		backgroundMusic.initialize(audioMgr);
+		// optional: make it non positional so it doesn't attenuate with distance
+		backgroundMusic.setMinDistance(0f);
+		backgroundMusic.setMaxDistance(100f);
+		backgroundMusic.setRollOff(1.0f);
 	}
 
 	/**
@@ -433,6 +445,22 @@ public class MyGame extends VariableFrameRateGame
 			System.err.println("Sphere shape has no vertices — using Cube fallback");
 			waterCubeS = new Cube();
 		}
+		try {
+			radioS = new ImportedModel("radio.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load radio.obj: " + e.getMessage());
+			radioS = new Cube();
+		}
+		try {
+			lampS = new ImportedModel("lamp.obj");
+		} catch(Exception e) {
+			System.err.println("Failed to load lamp.obj: " + e.getMessage());
+			lampS = new Cube();
+		}
+		if (lampS.getVertices() == null || lampS.getVertices().length == 0) {
+			System.err.println("Lamp model has no vertices — using Cube fallback");
+			lampS = new Cube();
+		}
 	
 		// 12) Axis lines
 		linxS = new Line(new Vector3f(0,0,0), new Vector3f(10,0,0));
@@ -474,6 +502,8 @@ public class MyGame extends VariableFrameRateGame
 		wheattx = new TextureImage("wheattx.jpg");
 		wateringcantx = new TextureImage("watercantx.jpg");
 		beetx = new TextureImage("beetx.jpeg");
+		radiotx = new TextureImage("radiotx.jpeg");
+		lamptx = new TextureImage("lamptx.jpeg");
 		
 		dayOneTerrain = new TextureImage("dayOneTerrain.jpg");
 		dayTwoTerrain = new TextureImage("dayTwoTerrain.jpg");
@@ -545,7 +575,7 @@ public class MyGame extends VariableFrameRateGame
 		chicken = new GameObject(GameObject.root(), chickenS, chickentx);
 		initialTranslation = (new Matrix4f()).translation(0,0,1);
 		chicken.setLocalTranslation(initialTranslation);
-		initialScale = (new Matrix4f().scaling(0.1f));
+		initialScale = (new Matrix4f().scaling(0.05f));
 		chicken.setLocalTranslation(initialTranslation);
 		chicken.setLocalScale(initialScale);
 		
@@ -630,7 +660,55 @@ public class MyGame extends VariableFrameRateGame
 			marketXform,
 			marketHalfExtents
 		);
-		market.setPhysicsObject(marketPhys);		
+		market.setPhysicsObject(marketPhys);	
+
+		Vector3f homePos1 = home.getWorldLocation();
+		radio = new GameObject(GameObject.root(), radioS, radiotx);
+		Matrix4f radioTrans = new Matrix4f()
+			.translation(homePos1.x(), homePos1.y(), homePos1.z()+ 1.0f);
+		Matrix4f rotateRadio = new Matrix4f().rotateY((float) Math.toRadians(180));
+		radio.setLocalRotation(rotateRadio);
+		radio.setLocalTranslation(radioTrans);
+		radio.setLocalScale(new Matrix4f().scaling(0.1f));
+	
+
+		double[] xf = {
+			1,0,0,0,
+			0,1,0,0,
+			0,0,1,0,
+			homePos.x()+1, homePos.y(), homePos.z(), 1
+		};
+		float[] halfExtents = { 0.3f, 0.3f, 0.3f };
+		PhysicsObject radioPhys = physicsEngine.addBoxObject(
+			physicsEngine.nextUID(), 0f, xf, halfExtents);
+		radio.setPhysicsObject(radioPhys);
+
+		
+		Vector3f mpos = market.getWorldLocation();
+		float   lampSideOffset   = 0.4f;
+		float   lampScale        = 0.1f;
+
+		// left lamp
+		lampLeft = new GameObject(GameObject.root(), lampS, lamptx);
+		lampLeft.setLocalScale(new Matrix4f().scaling(lampScale));
+		lampLeft.setLocalTranslation(
+			new Matrix4f().translation(
+				mpos.x() - lampSideOffset,
+				mpos.y() ,
+				mpos.z()
+			)
+		);
+		// right lamp
+		lampRight = new GameObject(GameObject.root(), lampS, lamptx);
+		lampRight.setLocalScale(new Matrix4f().scaling(lampScale));
+		lampRight.setLocalTranslation(
+			new Matrix4f().translation(
+				mpos.x() + lampSideOffset,
+				mpos.y() ,
+				mpos.z()
+			)
+		);
+		
 
 		tree = new GameObject(GameObject.root(), treeS, treetx);
 		initialTranslation = new Matrix4f().translation(3, 0, 1);
@@ -747,6 +825,9 @@ public class MyGame extends VariableFrameRateGame
 			z.getRenderStates().enableRendering();
 			bee.getRenderStates().enableRendering();
 			tree.getRenderStates().enableRendering();
+			radio.getRenderStates().enableRendering();
+			lampLeft.getRenderStates().enableRendering();
+			lampRight.getRenderStates().enableRendering();
 		});
 
 		System.out.println("Finished buildObjects, activeCrops size: " + activeCrops.size());
@@ -1082,6 +1163,7 @@ public class MyGame extends VariableFrameRateGame
 		Vector3f pos = avatar.getWorldLocation();
 		float distToMarket = pos.distance(market.getWorldLocation());
 		float distToHome   = pos.distance(home  .getWorldLocation());
+		float distToRadio = pos.distance(radio.getWorldLocation());
 		
 		String hudMessage;
 		if (isWatering) {
@@ -1092,6 +1174,9 @@ public class MyGame extends VariableFrameRateGame
 		}
 		else if (distToMarket < 1.0f) {
 			hudMessage = "Status: Near the Market";
+		}
+		else if (distToRadio < 1.0f) {
+			hudMessage = "Status: Near the Radio";
 		}
 		else {
 			hudMessage = "Status: Roaming the Fields";
@@ -1743,11 +1828,21 @@ public class MyGame extends VariableFrameRateGame
 				Vector3f pos = avatar.getWorldLocation();
 				float distToMarket = pos.distance(market.getWorldLocation());
 				float distToHome   = pos.distance(home.getWorldLocation());
+				float dRadio   = pos.distance(radio.getWorldLocation());
 				if (distToMarket < 1.0f) {
 					marketMode = MarketMode.CHOOSING;
 				}
 				else if (distToHome < 1.0f) {
 					shouldResetSkybox = true;
+				}
+				else if (dRadio < 1.0f) {
+					if (!radioOn) {
+						backgroundMusic.setLocation(radio.getWorldLocation());
+						backgroundMusic.play();
+					} else {
+						backgroundMusic.stop();
+					}
+					radioOn = !radioOn;
 				}
 			break;
 		
@@ -2295,5 +2390,6 @@ public class MyGame extends VariableFrameRateGame
 		public GameObject getTerr() { return terr;}
 		public static  MyGame getInstance() { return instance; }
 		public GameObject getBee() { return bee; }
+		public GameObject getRadio() { return radio; }
 		
 }
