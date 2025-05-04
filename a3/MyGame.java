@@ -29,6 +29,7 @@ import org.joml.sampling.BestCandidateSampling.Quad;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLRunnable;
 
+import net.java.games.input.Component;
 import net.java.games.input.Event;
 import tage.input.*;
 import tage.input.action.AbstractInputAction;
@@ -1013,25 +1014,7 @@ public class MyGame extends VariableFrameRateGame
 		FwdAction fwdAction = new FwdAction(this, protClient);
 		turnAction = new TurnAction(this);
 		
-		im.associateActionWithAllGamepads(
-				net.java.games.input.Component.Identifier.Button._1, 
-				fwdAction,
-				InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-		im.associateActionWithAllGamepads(
-				net.java.games.input.Component.Identifier.Axis.Y, 
-				fwdAction, 
-				InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllGamepads(
-				net.java.games.input.Component.Identifier.Button._0, 
-				fwdAction, 
-				InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllGamepads(
-				net.java.games.input.Component.Identifier.Button._1, 
-				fwdAction, 
-				InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
+
 		im.associateActionWithAllKeyboards(
 				net.java.games.input.Component.Identifier.Key.W, 
 				fwdAction,
@@ -1050,25 +1033,6 @@ public class MyGame extends VariableFrameRateGame
 		im.associateActionWithAllKeyboards(
 			net.java.games.input.Component.Identifier.Key.D, 
 			turnAction,
-			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllGamepads(
-			net.java.games.input.Component.Identifier.Axis.X, 
-			turnAction,
-			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllGamepads(
-			net.java.games.input.Component.Identifier.Axis.X, 
-			turnAction,
-			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllGamepads(
-			net.java.games.input.Component.Identifier.Axis.RY, 
-			turnAction, 
-			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllGamepads(
-			net.java.games.input.Component.Identifier.Axis.RX, turnAction, 
 			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 		);
 
@@ -1127,6 +1091,75 @@ public class MyGame extends VariableFrameRateGame
 					},
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
+
+				
+		im.associateActionWithAllGamepads(
+			net.java.games.input.Component.Identifier.Axis.Y, 
+			fwdAction, 
+			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+		);
+		im.associateActionWithAllGamepads(
+		Component.Identifier.Axis.X,
+		turnAction,
+		InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+		);
+
+		im.associateActionWithAllGamepads(
+			net.java.games.input.Component.Identifier.Button._0, // B -> X
+			new AbstractInputAction() {
+				public void performAction(float time, Event e) {
+					if (e.getValue() > 0.5f)    // on press
+						doPlant();
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+		);
+
+		im.associateActionWithAllGamepads(
+			net.java.games.input.Component.Identifier.Button._2, // A -> B
+			new AbstractInputAction() {
+				public void performAction(float time, Event e) {
+					if (e.getValue() > 0.5f)
+						doHarvest();
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+		);
+		// new: Z shoulder button
+		im.associateActionWithAllGamepads(
+			net.java.games.input.Component.Identifier.Button._7,  //  your Z
+			new AbstractInputAction() {
+				@Override public void performAction(float time, Event e) {
+					if (e.getValue() > 0.5f)
+						cycleTool();
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+		);
+
+		im.associateActionWithAllGamepads(
+			net.java.games.input.Component.Identifier.Button._3,  // Y button
+			new AbstractInputAction() {
+				@Override
+				public void performAction(float time, Event e) {
+					if (e.getValue() > 0.5f)  // only on press
+						doUseTool();
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+		);
+		im.associateActionWithAllGamepads(
+			Component.Identifier.Button._1, // A
+			new AbstractInputAction() {
+				@Override public void performAction(float time, Event e) {
+					if (e.getValue() > 0.5f) 
+						openMenu();
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+		);
+
+
 
 		synchronized (renderStateQueue) {
 			for (Runnable task : renderStateQueue) {
@@ -1943,113 +1976,17 @@ public class MyGame extends VariableFrameRateGame
 			break;
 
 			case KeyEvent.VK_H:
-				if (marketMode!=MarketMode.NONE || isBuyingSeeds) break;
-				Crop nearest = null;
-				float bestDist = Float.MAX_VALUE;
-				// find the ready, unharvested crop closest to you
-				for (Crop c: activeCrops) {
-					if (!c.isHarvested() && c.isReadyToHarvest() && c.hasGrown()) {
-						GameObject p = c.getPlantedObject();
-						if (p==null) continue;
-						float d = avatar.getWorldLocation().distance(p.getWorldLocation());
-						if (d < 1.5f && d < bestDist) {
-							bestDist = d;
-							nearest = c;
-						}
-					}
-				}
-				if (nearest != null && inventoryCount < 5) {
-					GameObject p = nearest.getPlantedObject();
-					synchronized(cropsToRemove)   { cropsToRemove.add(nearest); }
-					synchronized(objectsToDisable){ objectsToDisable.add(p);       }
-					Light light = plantLights.remove(nearest.getId());
-					if (light != null) {
-						engine.getSceneGraph().removeLight(light);
-					}
-					p.getRenderStates().disableRendering();
-					nearest.markHarvested();
-					inventory[inventoryCount++] = nearest.getType();
-					if (protClient!=null && isConnected) {
-						try {
-							protClient.sendHarvestMessage(nearest.getId().toString());
-						} catch (IOException ex) {
-							ex.printStackTrace();
-						}
-					}
-					
-					System.out.println("Harvested " + nearest.getType());
-				} else if (nearest!=null) {
-					System.out.println("Inventory full!");
-				}
+				doHarvest();
 			break;
 			
 			
 			case KeyEvent.VK_M:
-				Vector3f pos = avatar.getWorldLocation();
-				float distToMarket = pos.distance(market.getWorldLocation());
-				float distToHome   = pos.distance(home.getWorldLocation());
-				float dRadio   = pos.distance(radio.getWorldLocation());
-				if (distToMarket < 1.0f) {
-					marketMode = MarketMode.CHOOSING;
-				}
-				else if (distToHome < 1.0f) {
-					shouldResetSkybox = true;
-				}
-				else if (dRadio < 1.0f) {
-					if (!radioOn) {
-						backgroundMusic.setLocation(radio.getWorldLocation());
-						backgroundMusic.play();
-					} else {
-						backgroundMusic.stop();
-					}
-					radioOn = !radioOn;
-				}
+				openMenu();
 			break;
-		
 			
 			case KeyEvent.VK_E:
-			for (int i = 0; i < inventory.length; i++) {
-				if (inventory[i] != null && inventory[i].startsWith("Seed_")) {
-					String cropType = inventory[i].split("_")[1];
-					inventory[i] = null;
-					inventoryCount--;
-		
-					Vector3f forward = avatar.getWorldForwardVector().normalize();
-					Vector3f position = avatar.getWorldLocation().add(forward.mul(0.5f));
-		
-					GameObject planted = new GameObject(GameObject.root(), plantS, planttx);
-					planted.setLocalTranslation(new Matrix4f().translation(position.x(), 0, position.z()));
-					planted.setLocalScale(new Matrix4f().scaling(0.020f));
-		
-					double growTime = cropType.equals("Carrot") ? 45 : 30;
-					ObjShape targetShape = cropType.equals("Carrot") ? carrotS : wheatS;
-					TextureImage targetTexture = cropType.equals("Carrot") ? carrottx : wheattx;
-		
-					Crop crop = new Crop(cropType, growTime, targetShape, targetTexture);
-					crop.setPlantedObject(planted);
-					activeCrops.add(crop);
-		
-					compactInventory(); // after removing seed
-		
-					// Only add a PlantAnimationController if the planted object has AnimatedShape
-					if (planted.getShape() instanceof AnimatedShape) {
-						PlantAnimationController plantController = new PlantAnimationController(planted);
-						plantControllers.add(plantController);
-					}
-					if (protClient!=null && isConnected) {
-						try {
-							protClient.sendPlantMessage(position, crop.getId().toString(), cropType);
-						} catch (IOException ex) {
-							ex.printStackTrace();
-						}
-					}
-					
-		
-					break; // Only plant once per keypress
-				}
-			}
+				doPlant(); 
 			break;
-		
 		
 			case KeyEvent.VK_B:
 				if (marketMode == MarketMode.CHOOSING) {
@@ -2096,6 +2033,170 @@ public class MyGame extends VariableFrameRateGame
 		}
 		super.keyPressed(e);
 	}
+
+	/**
+	 * Exactly the same as SPACE: toggles use of the active tool.
+	 */
+	public void doUseTool() {
+		switch(activeTool) {
+			case WATERING_CAN:
+				isWatering = !isWatering;             // toggle watering
+				if (isWatering) {
+					shouldAttachWateringCan = true;
+					wateringSound.setLocation(avatar.getWorldLocation());
+					wateringSound.play();
+				} else {
+					shouldDetachWateringCan = true;
+					wateringSound.stop();
+				}
+				break;
+
+			case TORCH:
+				if (torch.getRenderStates().renderingEnabled()) {
+					torch.getRenderStates().disableRendering();
+					fireSound.stop();
+				} else {
+					torch.getRenderStates().enableRendering();
+					fireSound.play();
+				}
+				break;
+
+			default:
+				break;
+		}
+	}
+
+	
+
+	/**
+	 * Plants the first available seed in your inventory,
+	 * exactly the same logic you had under case VK_E.
+	 */
+	public void doPlant() {
+		for (int i = 0; i < inventory.length; i++) {
+			if (inventory[i] != null && inventory[i].startsWith("Seed_")) {
+				// remove the seed
+				String cropType = inventory[i].split("_")[1];
+				inventory[i] = null;
+				inventoryCount--;
+
+				// compute spawn position
+				Vector3f forward = avatar.getWorldForwardVector().normalize();
+				Vector3f position = avatar.getWorldLocation().add(forward.mul(0.5f));
+
+				// create the planted object
+				GameObject planted = new GameObject(GameObject.root(), plantS, planttx);
+				planted.setLocalTranslation(new Matrix4f().translation(position.x(), 0, position.z()));
+				planted.setLocalScale(new Matrix4f().scaling(0.020f));
+
+				// choose grow time and appearance
+				double growTime       = cropType.equals("Carrot") ? 45 : 30;
+				ObjShape targetShape = cropType.equals("Carrot") ? carrotS : wheatS;
+				TextureImage targetTexture = cropType.equals("Carrot") ? carrottx : wheattx;
+
+				// register the crop
+				Crop crop = new Crop(cropType, growTime, targetShape, targetTexture);
+				crop.setPlantedObject(planted);
+				activeCrops.add(crop);
+
+				// tidy up inventory
+				compactInventory();
+
+				// if animated, start its animation controller
+				if (planted.getShape() instanceof AnimatedShape) {
+					PlantAnimationController pac = new PlantAnimationController(planted);
+					plantControllers.add(pac);
+				}
+
+				// network: tell the server
+				if (protClient != null && isConnected) {
+					try {
+						protClient.sendPlantMessage(position, crop.getId().toString(), cropType);
+					} catch (IOException ex) {
+						ex.printStackTrace();
+					}
+				}
+
+				break;  // only plant one seed per press
+			}
+		}
+	}
+	private void openMenu() {
+		Vector3f pos = avatar.getWorldLocation();
+		float distToMarket = pos.distance(market.getWorldLocation());
+		float distToHome   = pos.distance(home .getWorldLocation());
+		float distToRadio  = pos.distance(radio.getWorldLocation());
+	
+		if (distToMarket < 1.0f) {
+			marketMode = MarketMode.CHOOSING;
+		}
+		else if (distToHome < 1.0f) {
+			shouldResetSkybox = true;
+		}
+		else if (distToRadio < 1.0f) {
+			if (!radioOn) {
+				backgroundMusic.setLocation(radio.getWorldLocation());
+				backgroundMusic.play();
+			} else {
+				backgroundMusic.stop();
+			}
+			radioOn = !radioOn;
+		}
+	}
+	
+	/**
+	 * Harvests the nearest ripe crop, exactly the same logic you had under case VK_H.
+	 */
+	public void doHarvest() {
+		// block if in market UI
+		if (marketMode != MarketMode.NONE || isBuyingSeeds) return;
+
+		// find closest ready crop
+		Crop nearest = null;
+		float bestDist = Float.MAX_VALUE;
+		for (Crop c : activeCrops) {
+			if (!c.isHarvested() && c.isReadyToHarvest() && c.hasGrown()) {
+				GameObject p = c.getPlantedObject();
+				if (p == null) continue;
+				float d = avatar.getWorldLocation().distance(p.getWorldLocation());
+				if (d < 1.5f && d < bestDist) {
+					bestDist = d;
+					nearest = c;
+				}
+			}
+		}
+
+		// if found and have space, harvest it
+		if (nearest != null && inventoryCount < 5) {
+			GameObject p = nearest.getPlantedObject();
+			synchronized (cropsToRemove)   { cropsToRemove.add(nearest); }
+			synchronized (objectsToDisable){ objectsToDisable.add(p);       }
+
+			Light spot = plantLights.remove(nearest.getId());
+			if (spot != null)
+				engine.getSceneGraph().removeLight(spot);
+
+			p.getRenderStates().disableRendering();
+			nearest.markHarvested();
+			inventory[inventoryCount++] = nearest.getType();
+
+			// network: tell the server
+			if (protClient != null && isConnected) {
+				try {
+					protClient.sendHarvestMessage(nearest.getId().toString());
+				} catch (IOException ex) {
+					ex.printStackTrace();
+				}
+			}
+
+			System.out.println("Harvested " + nearest.getType());
+		}
+		else if (nearest != null) {
+			System.out.println("Inventory full!");
+		}
+	}
+
+
 
 	/**
      * Retrieves the dolphin object.
@@ -2549,6 +2650,27 @@ public class MyGame extends VariableFrameRateGame
 			audioMgr.getEar().setOrientation(camera.getN(), new Vector3f(0.0f, 1.0f, 0.0f));
 		}
 		
+		public void cycleTool() {
+			// first turn off whatever was on
+			wateringcan.getRenderStates().disableRendering();
+			torch      .getRenderStates().disableRendering();
+		
+			// step forward in the enum
+			switch(activeTool) {
+				case NONE:
+					activeTool = Tool.WATERING_CAN;
+					wateringcan.getRenderStates().enableRendering();
+					break;
+				case WATERING_CAN:
+					activeTool = Tool.TORCH;
+					torch.getRenderStates().enableRendering();
+					break;
+				case TORCH:
+					activeTool = Tool.NONE;
+					// nothing left to enable
+					break;
+			}
+		}
 
 		public GameObject getHome()   { return home; }
 		public GameObject getMarket() { return market; }
