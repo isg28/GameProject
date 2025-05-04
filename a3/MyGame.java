@@ -152,7 +152,7 @@ public class MyGame extends VariableFrameRateGame
 	private NPCcontroller npcCtrl;
 	private GameAIServerUDP aiServer;
 	private IAudioManager audioMgr;
-	private Sound beeBuzzSound, pigOinkSound, wateringSound, backgroundMusic;
+	private Sound beeBuzzSound, pigOinkSound, wateringSound, backgroundMusic, fireSound;
 	private boolean isBuzzing = false;
 	private Sound chickenCluckSound;
 	private float pigSoundCooldown = 0;
@@ -323,6 +323,13 @@ public class MyGame extends VariableFrameRateGame
 		backgroundMusic.setMinDistance(0f);
 		backgroundMusic.setMaxDistance(100f);
 		backgroundMusic.setRollOff(1.0f);
+
+		AudioResource fireRes = audioMgr.createAudioResource("fireSound.wav", AudioResourceType.AUDIO_SAMPLE);
+		fireSound = new Sound(fireRes, SoundType.SOUND_EFFECT, 30, true); // volume=100, looping=true
+		fireSound.initialize(audioMgr);
+		fireSound.setMaxDistance(10.0f);  // torch doesn’t carry as far
+		fireSound.setMinDistance(1.0f);
+		fireSound.setRollOff(1.0f);
 	}
 
 	/**
@@ -1670,7 +1677,9 @@ public class MyGame extends VariableFrameRateGame
 		// move the ear of the sound to the watering can’s world position
 		wateringSound.setLocation(wateringcan.getWorldLocation());
 	}
-	
+	if (torch.getRenderStates().renderingEnabled() && fireSound != null) {
+		fireSound.setLocation(torch.getWorldLocation());
+	  }
 
     }
 	// Process packets received by the client from the server
@@ -2011,8 +2020,10 @@ public class MyGame extends VariableFrameRateGame
 					case TORCH:
 						if (torch.getRenderStates().renderingEnabled()) {
 							torch.getRenderStates().disableRendering();
+							fireSound.stop(); 
 						} else {
 							torch.getRenderStates().enableRendering();
+							fireSound.play(); 
 						}
 					break;
 					default:
