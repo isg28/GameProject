@@ -49,6 +49,8 @@ import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.GLRunnable;
 import java.lang.reflect.Method;
+import javax.swing.*;
+
 
 /**
  * MyGame is the main entry point for the game application and manages core gameplay mechanics.
@@ -82,7 +84,10 @@ public class MyGame extends VariableFrameRateGame
 	protected ObjShape dolS, linxS, linyS, linzS, terrS, borderShape, pigS, chickenS, rabbitS, carrotS, homeS, treeS, plantS, marketS,
 																wheatS, wateringcanS, waterCubeS, beeS, radioS, lampS, torchS;
 	protected TextureImage doltx, pigtx, chickentx, rabbittx, carrottx, hometx, treetx, planttx, markettx, wheattx, wateringcantx,
+																grayrabbittx, yellowrabbittx, purplerabbittx, pinkrabbittx, orangerabbittx, 
+																lavenderrabbittx, greenrabbittx, bluerabbittx, brownrabbittx,
 																beetx, radiotx, lamptx, torchtx;
+
 	private Light light1, chaseLight, lampLeftLight, lampRightLight, torchLight; 
 
 	private InputManager im;
@@ -163,6 +168,21 @@ public class MyGame extends VariableFrameRateGame
 	private boolean radioOn = false;
 	public static enum Tool { NONE, WATERING_CAN, TORCH }
 	private Tool activeTool = Tool.NONE;
+	private static String selectedRabbitColor = "white";
+	private static final Map<String,String> rabbitColorFiles = new HashMap<>();
+	static {
+		rabbitColorFiles.put("White",       "rabbittx.jpg");
+		rabbitColorFiles.put("Gray",        "grayrabbittx.jpg");
+		rabbitColorFiles.put("Yellow",      "yellowrabbittx.jpg");
+		rabbitColorFiles.put("Purple",      "purplerabbittx.jpg");
+		rabbitColorFiles.put("Pink",        "pinkrabbittx.jpg");
+		rabbitColorFiles.put("Orange",      "orangerabbittx.jpg");
+		rabbitColorFiles.put("Lavender",    "lavenderrabbittx.jpg");
+		rabbitColorFiles.put("Green",       "greenrabbittx.jpg");
+		rabbitColorFiles.put("Brown",    "brownrabbittx.jpg");
+		rabbitColorFiles.put("Blue",     "bluerabbittx.jpg");
+	}
+
 
 	/**
     * Constructs the game instance and initializes the game loop.
@@ -260,6 +280,19 @@ public class MyGame extends VariableFrameRateGame
     */
 	public static void main(String[] args)
 	{	
+		String[] options = rabbitColorFiles.keySet().toArray(new String[0]);
+		int choice = JOptionPane.showOptionDialog(
+			null,
+			"Pick your rabbit's color",
+			"Rabbit Color Picker",
+			JOptionPane.DEFAULT_OPTION,
+			JOptionPane.PLAIN_MESSAGE,
+			null,
+			options,
+			options[0]
+		);
+		if (choice>=0) selectedRabbitColor = options[choice];
+
 		MyGame game = new MyGame(args[0], Integer.parseInt(args[1]), args[2]);
 		engine = new Engine(game);
 		game.loadShapes();
@@ -556,6 +589,22 @@ public class MyGame extends VariableFrameRateGame
 		radiotx = new TextureImage("radiotx.jpeg");
 		lamptx = new TextureImage("lamptx.jpeg");
 		torchtx = new TextureImage("torchtx.jpeg");
+
+		grayrabbittx      = new TextureImage("grayrabbittx.jpg");
+		yellowrabbittx    = new TextureImage("yellowrabbittx.jpg");
+		purplerabbittx    = new TextureImage("purplerabbittx.jpg");
+		pinkrabbittx      = new TextureImage("pinkrabbittx.jpg");
+		orangerabbittx    = new TextureImage("orangerabbittx.jpg");
+		lavenderrabbittx  = new TextureImage("lavenderrabbittx.jpg");
+		greenrabbittx     = new TextureImage("greenrabbittx.jpg");
+		brownrabbittx = new TextureImage("brownrabbittx.jpg");
+		bluerabbittx  = new TextureImage("bluerabbittx.jpg");
+		rabbittx          = new TextureImage("rabbittx.jpg");  // white
+	
+		String file = rabbitColorFiles.get(selectedRabbitColor);
+		if (file != null) {
+			rabbittx = new TextureImage(file);
+		}
 		
 		dayOneTerrain = new TextureImage("dayOneTerrain.jpg");
 		dayTwoTerrain = new TextureImage("dayTwoTerrain.jpg");
@@ -573,6 +622,20 @@ public class MyGame extends VariableFrameRateGame
 			hills = null;
 		}		
 
+	}
+	private TextureImage getChosenRabbitTexture() {
+		switch(selectedRabbitColor) {
+			case "Gray":     return grayrabbittx;
+			case "Yellow":   return yellowrabbittx;
+			case "Purple":   return purplerabbittx;
+			case "Pink":     return pinkrabbittx;
+			case "Orange":   return orangerabbittx;
+			case "Lavender": return lavenderrabbittx;
+			case "Green":    return greenrabbittx;
+			case "Brown": return brownrabbittx;
+			case "Blue":  return bluerabbittx;
+			default:         return rabbittx;        // white
+		}
 	}
 	
 	/**
@@ -650,7 +713,7 @@ public class MyGame extends VariableFrameRateGame
 			);
 		chicken.setPhysicsObject(chickenPhys); 
 
-		rabbit = new GameObject(GameObject.root(), rabbitS, rabbittx);
+		rabbit = new GameObject(GameObject.root(), rabbitS, getChosenRabbitTexture());
 		initialTranslation = (new Matrix4f()).translation(0,0 ,2);
 		rabbit.setLocalTranslation(initialTranslation);
 		initialScale = (new Matrix4f().scaling(0.1f));
