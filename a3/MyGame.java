@@ -1167,25 +1167,64 @@ public class MyGame extends VariableFrameRateGame
 		im.associateActionWithAllGamepads(
 			Component.Identifier.Axis.POV,
 			new AbstractInputAction() {
-				@Override
-				public void performAction(float time, Event e) {
-					float povValue = e.getValue();
-					if (povValue == Component.POV.UP) {
-						if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
-							int maxOption = (marketMode == MarketMode.CHOOSING || isBuyingSeeds) ? 2 : 2;
-							selectedMenuOption = (selectedMenuOption + 1) % (maxOption + 1);
+				@Override public void performAction(float time, Event e) {
+					float pov = e.getValue();
+		
+					if (marketMode == MarketMode.CHOOSING
+					 || marketMode == MarketMode.SELLING
+					 || isBuyingSeeds) {
+		
+						int maxOption = 2;  // you already have it as 2
+						if      (pov == Component.POV.UP) {
+						   selectedMenuOption = (selectedMenuOption + 1) % (maxOption + 1);
 						}
-					} else if (povValue == Component.POV.DOWN) {
-						if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
-							int maxOption = (marketMode == MarketMode.CHOOSING || isBuyingSeeds) ? 2 : 2;
-							selectedMenuOption = (selectedMenuOption - 1 + maxOption + 1) % (maxOption + 1);
+						else if (pov == Component.POV.DOWN) {
+						   selectedMenuOption = (selectedMenuOption - 1 + maxOption + 1) % (maxOption + 1);
 						}
+					}
+					else {
+						if      (pov == Component.POV.RIGHT) panRightViewportCamera( 0.1f,  0f);
+						else if (pov == Component.POV.LEFT ) panRightViewportCamera(-0.1f,  0f);
+						else if (pov == Component.POV.UP   ) panRightViewportCamera( 0f,    0.1f);
+						else if (pov == Component.POV.DOWN ) panRightViewportCamera( 0f,   -0.1f);
+					}
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+		);
+		im.associateActionWithAllGamepads(
+			Component.Identifier.Axis.RZ,
+			new AbstractInputAction() {
+				@Override public void performAction(float time, Event e) {
+					float zoomAmount = e.getValue() * 0.1f;  
+					zoomRightViewportCamera(zoomAmount);
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
+		);
+		im.associateActionWithAllGamepads(
+			Component.Identifier.Axis.RY,
+			new AbstractInputAction() {
+				boolean hasReset = false;
+				@Override public void performAction(float time, Event e) {
+					float v = e.getValue();
+					if (!hasReset && v > 0.5f) {
+						Camera r = engine.getRenderSystem().getViewport("RIGHT").getCamera();
+						Camera l = engine.getRenderSystem().getViewport("LEFT") .getCamera();
+						if (r != null) resetViewportCamera(r);
+						if (l != null) resetViewportCamera(l);
+						hasReset = true;
+					}
+					else if (hasReset && Math.abs(v) < 0.1f) {
+						hasReset = false;
 					}
 				}
 			},
 			InputManager.INPUT_ACTION_TYPE.ON_PRESS_AND_RELEASE
 		);
 		
+
+
 
 
 

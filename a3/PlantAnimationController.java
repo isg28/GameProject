@@ -76,7 +76,6 @@ public class PlantAnimationController {
         if (timer >= nextFlapTime) {
             // Play the flap animation once
             animatedShape.playAnimation(FLAP_ANIMATION, FLAP_SPEED, AnimatedShape.EndType.STOP, 0);
-            System.out.println("Plant flapping!");
             scheduleNextFlap(); // Set a new random time for next flap
         }
     }
