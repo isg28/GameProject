@@ -3,6 +3,7 @@ package a3;
 import org.joml.Vector3f;
 import org.joml.Matrix4f;
 import tage.GameObject;
+import tage.Light;
 import tage.ObjShape;
 import tage.TextureImage;
 import tage.physics.PhysicsEngine;
@@ -22,6 +23,13 @@ public class GhostAvatar extends GameObject {
     private float dropletTimer = 0f;
     private static final float DROP_INTERVAL = 0.05f;
     private static final float DROPLET_LIFETIME = 2.0f;
+    private GameObject torchObject;
+    private boolean torchOn = false;
+    private Light       torchLight;
+    private GameObject torchGO;
+    private MyGame game;
+
+
 
     private List<GameObject>   ghostDrops        = new ArrayList<>();
     private List<PhysicsObject> ghostDropPhysics = new ArrayList<>();
@@ -30,10 +38,11 @@ public class GhostAvatar extends GameObject {
     private List<Boolean>       hasBounced        = new ArrayList<>();
     
 
-    public GhostAvatar(UUID id, ObjShape s, TextureImage t, Vector3f p) {
+    public GhostAvatar(MyGame game, UUID id, ObjShape s, TextureImage t, Vector3f p) {
         super(GameObject.root(), s, t);
-        this.id = id;
-        setPosition(p);
+        this.game = game;             
+        setId(id);
+        setLocalTranslation(new Matrix4f().translation(p));
     }
 
     public UUID getId() { return id; }
@@ -140,4 +149,44 @@ public class GhostAvatar extends GameObject {
         Matrix4f m = new Matrix4f().translation(p.x, p.y, p.z);
         setLocalTranslation(m);
     }
+    public void initTorch(ObjShape torchShape, TextureImage torchTex) {
+        torchObject = new GameObject(this, torchShape, torchTex);
+        torchObject.setLocalScale(new Matrix4f().scaling(0.7f));      // match your MyGame scale
+        torchObject.setLocalTranslation(new Matrix4f().translation(0.1f,0.1f,0.1f));
+        torchObject.getRenderStates().disableRendering();
+
+        torchLight = new Light();
+        torchLight.setType(Light.LightType.POSITIONAL);
+        torchLight.setAmbient(0.2f, 0.1f, 0.0f);
+        torchLight.setDiffuse(1.0f, 0.8f, 0.3f);
+        torchLight.setSpecular(1.0f, 0.8f, 0.3f);
+        torchLight.setRange(2.0f);
+        torchLight.setConstantAttenuation(1f);
+        torchLight.setLinearAttenuation(0.8f);
+        torchLight.setQuadraticAttenuation(0.2f);
+        torchLight.disable();
+        game.getEngine().getSceneGraph().addLight(torchLight);
+    }
+
+    public GameObject getTorchObject() { return torchObject; }
+    public void setTorchOn(boolean on) {
+        this.torchOn = on;
+        if (torchObject != null) {
+            if (on) {
+                torchObject.getRenderStates().enableRendering();
+                torchLight.enable();         // turn on the glow
+            }
+            else {
+                torchObject.getRenderStates().disableRendering();
+                torchLight.disable();        // turn off the glow
+            }
+        }
+    }
+    
+    public boolean isTorchOn() { return torchOn; }
+    public GameObject getTorchGO() { return torchGO; }
+    public Light      getTorchLight() { return torchLight; }
+
+
+
 }

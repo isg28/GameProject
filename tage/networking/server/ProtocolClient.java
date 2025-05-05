@@ -77,7 +77,7 @@ public class ProtocolClient extends GameConnectionClient {
 
         switch (msgTokens[0]) {
             case "create":
-                if (msgTokens.length < 5) {
+                if (msgTokens.length < 6) {
                     System.out.println("[ProtocolClient] ERROR: Create message is incomplete: " + msg);
                     return;
                 }
@@ -86,10 +86,12 @@ public class ProtocolClient extends GameConnectionClient {
                     float x = Float.parseFloat(msgTokens[2]);
                     float y = Float.parseFloat(msgTokens[3]);
                     float z = Float.parseFloat(msgTokens[4]);
+                    String color = msgTokens[5];
+
                     Vector3f newGhostPosition = new Vector3f(x, y, z);
                     System.out.println("[ProtocolClient] Creating ghost for new client: " + newClientID);
                     try {
-                        game.getGhostManager().createGhost(newClientID, newGhostPosition);
+                        ghostManager.createGhost(newClientID, newGhostPosition, color);
                     } catch (IOException e) {
                         System.out.println("[ProtocolClient] ERROR: Failed to create ghost avatar for " + newClientID);
                         e.printStackTrace();
@@ -182,8 +184,17 @@ public class ProtocolClient extends GameConnectionClient {
                 float gy = Float.parseFloat(msgTokens[4]);
                 float gz = Float.parseFloat(msgTokens[5]);
                 String type2 = msgTokens[6];
-                ghostManager.ghostGrow(who, cropId2, new Vector3f(gx, gy, gz), type2);
+                game.onRemoteGrow(cropId2, new Vector3f(gx, gy, gz), type2);
                 break;
+
+                case "torch":
+                    UUID ghostID = UUID.fromString(msgTokens[1]);
+                    boolean torchOn = msgTokens[2].equals("1");
+                    // don’t re-apply to yourself
+                    if (!ghostID.equals(id))
+                        ghostManager.setGhostTorch(ghostID, torchOn);
+                break;
+
 
             case "beeAttack":
                 System.out.println("[ProtocolClient] Processing beeAttack message: " + msg);
@@ -241,8 +252,10 @@ public class ProtocolClient extends GameConnectionClient {
      */
     public void sendCreateMessage(Vector3f pos) {
         try {
-            String message = "create," + id.toString() + "," + pos.x + "," + pos.y + "," + pos.z;
-            sendPacket(message);
+            String message = String.format(
+                "create,%s,%.3f,%.3f,%.3f,%s",
+                id, pos.x, pos.y, pos.z, MyGame.selectedRabbitColor
+            );            sendPacket(message);
             System.out.println("[ProtocolClient] Sent create message: " + message);
         } catch (IOException e) {
             System.out.println("[ProtocolClient] ERROR: Failed to send create message: " + e.getMessage());
@@ -377,5 +390,13 @@ public class ProtocolClient extends GameConnectionClient {
             e.printStackTrace();
         }
     }
+    public void sendTorchMessage(boolean on) {
+        try {
+            sendPacket("torch," + id + "," + (on ? "1" : "0"));
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
     
 }

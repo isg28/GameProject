@@ -32,6 +32,8 @@ import java.util.HashMap;
 public class GameServerUDP extends GameConnectionServer<UUID> {
     private HashMap<UUID, String[]> clientPositions = new HashMap<>();
     private int currentSkyboxIndex = 0;
+    private HashMap<UUID,String> clientColors = new HashMap<>();
+
 
     /**
      * Constructs the UDP game server bound to the specified port.
@@ -66,12 +68,14 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     break;
 
                 case "create":
-                    clientID = UUID.fromString(msgTokens[1]);
-                    String[] pos = {msgTokens[2], msgTokens[3], msgTokens[4]};
-                    System.out.println("[Server] Processing create request for " + clientID);
-                    sendCreateMessages(clientID, pos);
-                    sendWantsDetailsMessages(clientID);
-                    break;
+                    UUID clientID1 = UUID.fromString(msgTokens[1]);
+                    String[] pos = { msgTokens[2], msgTokens[3], msgTokens[4] };
+                    String color = msgTokens.length >= 6 ? msgTokens[5] : "White";
+                    clientColors.put(clientID1, color);
+                    System.out.println("[Server] Processing create request for " + clientID1 + " with color " + color);
+                    sendCreateMessages(clientID1, pos, color);
+                    sendWantsDetailsMessages(clientID1);
+                break;
 
                 case "bye":
                     clientID = UUID.fromString(msgTokens[1]);
@@ -104,7 +108,14 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     }
                 break;
             
-            
+                case "torch":
+                    UUID toggler = UUID.fromString(msgTokens[1]);
+                    try {
+                        forwardPacketToAll(message, toggler);
+                    } catch(IOException e) {
+                        e.printStackTrace();
+                    }
+                break;
 
 
                 case "rotate":
@@ -198,15 +209,21 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
      * @param clientID The UUID of the new client.
      * @param position The initial position of the client avatar.
     */
-    public void sendCreateMessages(UUID clientID, String[] position) {
+    public void sendCreateMessages(UUID clientID, String[] position, String color) {
         try {
-            String message = "create," + clientID.toString() + "," + position[0] + "," + position[1] + "," + position[2];
-            System.out.println("[Server] Broadcasting creation of " + clientID + " to all clients.");
+            String message = String.join(",",
+                "create",
+                clientID.toString(),
+                position[0], position[1], position[2],
+                color
+            );
+            System.out.println("[Server] Broadcasting creation of " + clientID);
             forwardPacketToAll(message, clientID);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
     /**
      * Sends details of all currently connected clients to a new client.
      *
@@ -214,16 +231,18 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
     */
     public void sendWantsDetailsMessages(UUID newClientID) {
         try {
-            System.out.println("[Server] Sending details of existing clients to new client " + newClientID);
-    
-            for (UUID existingClientID : getClients().keySet()) {
-                if (!existingClientID.equals(newClientID)) {
-                    String[] position = clientPositions.getOrDefault(existingClientID, new String[]{"0.0", "0.0", "0.0"});
-                    String message = "create," + existingClientID.toString() + "," + position[0] + "," + position[1] + "," + position[2];
-    
-                    sendPacket(message, newClientID);
-                    System.out.println("[Server] Sent actual position of client " + existingClientID + " to new client " + newClientID);
-                }
+            System.out.println("[Server] Sending existing clients to " + newClientID);
+            for (UUID existing : getClients().keySet()) {
+                if (existing.equals(newClientID)) continue;
+                String[] position = clientPositions.getOrDefault(existing, new String[]{"0.0","0.0","0.0"});
+                String color = clientColors.getOrDefault(existing, "White");
+                String msg = String.join(",",
+                    "create",
+                    existing.toString(),
+                    position[0], position[1], position[2],
+                    color
+                );
+                sendPacket(msg, newClientID);
             }
         } catch (IOException e) {
             e.printStackTrace();

@@ -169,8 +169,8 @@ public class MyGame extends VariableFrameRateGame
 	private boolean radioOn = false;
 	public static enum Tool { NONE, WATERING_CAN, TORCH }
 	private Tool activeTool = Tool.NONE;
-	private static String selectedRabbitColor = "white";
-	private static final Map<String,String> rabbitColorFiles = new HashMap<>();
+	public static String selectedRabbitColor = "white";
+	public static final Map<String,String> rabbitColorFiles = new HashMap<>();
 	static {
 		rabbitColorFiles.put("White",       "rabbittx.jpg");
 		rabbitColorFiles.put("Gray",        "grayrabbittx.jpg");
@@ -858,8 +858,10 @@ public class MyGame extends VariableFrameRateGame
 
 		// Initialize and start AI server
         try {
-            aiServer = new GameAIServerUDP(serverPort + 1, npcCtrl);
-            npcCtrl.start(aiServer);
+			aiServer = new GameAIServerUDP(0, npcCtrl);
+			npcCtrl.start(aiServer);
+			System.out.println("AI server listening on port " + aiServer.getLocalPort());
+					
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -1261,6 +1263,7 @@ public class MyGame extends VariableFrameRateGame
 			ProtocolClient aiClient = new ProtocolClient(inetAddress, serverPort + 1, serverProtocol, this);
 			aiClient.sendJoinMessage();
 			isConnected = true;
+			sendTextureSelection();
 			System.out.println("[MyGame] Successfully connected to server");
 		} catch (UnknownHostException e) {
 			System.out.println("[MyGame] Error: Unknown host - " + serverAddress);
@@ -1410,13 +1413,13 @@ public class MyGame extends VariableFrameRateGame
 			hudMessage = "Status: Watering Crops";
 		}
 		else if (distToHome < 1.0f) {
-			hudMessage = "Status: Near the House";
+			hudMessage = "Status: Near the House, click M";
 		}
 		else if (distToMarket < 1.0f) {
-			hudMessage = "Status: Near the Market";
+			hudMessage = "Status: Near the Market, click M";
 		}
 		else if (distToRadio < 1.0f) {
-			hudMessage = "Status: Near the Radio";
+			hudMessage = "Status: Near the Radio, click M";
 		}
 		else {
 			hudMessage = "Status: Roaming the Fields";
@@ -1430,7 +1433,7 @@ public class MyGame extends VariableFrameRateGame
 		String dispStr3 = "Surveillance Camera on Rabbit";
 		String coinStr = "Coins: " + coins;
 
-		Vector3f hud1Color = new Vector3f(1,0,0);
+		Vector3f hud1Color = new Vector3f(1,0,0); 
 		Vector3f hud2Color = new Vector3f(0,0,1);
 		Vector3f hud3Color = new Vector3f(0, 0, 1);
 		Vector3f hud4Color = new Vector3f(0, 1, 0);
@@ -1627,13 +1630,24 @@ public class MyGame extends VariableFrameRateGame
 		}
 
 		for (Crop crop : activeCrops) {
-			boolean wasReady = crop.isReadyToHarvest();
-			crop.update();
-			// just turned ripe?
-			if (!wasReady && crop.isReadyToHarvest()) {
+			if (crop.updateAndCheckReady()) {
 				// spawn spotlight if we haven't already
 				UUID id = crop.getId();
 				if (!plantLights.containsKey(id)) {
+					spawnSpotlightFor(crop);
+					if (protClient != null && isConnected) {
+						Vector3f pos2 = crop.getPlantedObject().getWorldLocation();
+						try {
+							protClient.sendGrowMessage(
+								crop.getId().toString(),
+								pos2,
+								crop.getType()
+							);
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+
 					GameObject plantGO = crop.getPlantedObject();
 					Vector3f pos1 = plantGO.getWorldLocation();
 					Light spot = new Light();
@@ -1654,6 +1668,7 @@ public class MyGame extends VariableFrameRateGame
 					spot.setQuadraticAttenuation(0.05f);
 					engine.getSceneGraph().addLight(spot);
 					plantLights.put(id, spot);
+					
 				}
 			}
 		}
@@ -1732,6 +1747,8 @@ public class MyGame extends VariableFrameRateGame
 	gm.updateAllGhostCans();
     gm.updateAllGhostDroplets(dtSec);
 	gm.updateAllGhostCrops();
+	gm.updateAllGhostTorches();
+
 	if (npcCtrl.isPursuingAvatar()) {
         NPC theBee = npcCtrl.getNPC();
         Vector3f p = new Vector3f((float) theBee.getX(), (float) theBee.getY(), (float) theBee.getZ());
@@ -1869,6 +1886,21 @@ public class MyGame extends VariableFrameRateGame
 				break;
 
 
+			case KeyEvent.VK_1:
+				if(!inMarketUI){
+					activeTool = Tool.WATERING_CAN;
+					torch.getRenderStates().disableRendering();
+					wateringcan.getRenderStates().enableRendering();
+				}
+			break;
+
+			case KeyEvent.VK_2:
+				if(!inMarketUI){
+					activeTool = Tool.TORCH;
+					wateringcan.getRenderStates().disableRendering();
+					torch.getRenderStates().enableRendering();
+				}
+
 			case KeyEvent.VK_W:
 				if (protClient != null && isConnected) {
 					protClient.sendMoveMessage(avatar.getWorldLocation());
@@ -1999,13 +2031,15 @@ public class MyGame extends VariableFrameRateGame
 						}
 					break;
 					case TORCH:
-						if (torch.getRenderStates().renderingEnabled()) {
-							torch.getRenderStates().disableRendering();
-							fireSound.stop(); 
-						} else {
+						boolean newTorchState = !torch.getRenderStates().renderingEnabled();
+						if (newTorchState) {
 							torch.getRenderStates().enableRendering();
-							fireSound.play(); 
+							fireSound.play();
+						} else {
+							torch.getRenderStates().disableRendering();
+							fireSound.stop();
 						}
+						protClient.sendTorchMessage(newTorchState);
 					break;
 					default:
 						break;
@@ -2145,6 +2179,10 @@ public class MyGame extends VariableFrameRateGame
 					nearest = c;
 				}
 			}
+			Light spot = plantLights.remove(nearest.getId());
+			if (spot != null)
+				engine.getSceneGraph().removeLight(spot);
+
 		}
 
 		// if found and have space, harvest it
@@ -2777,6 +2815,122 @@ public class MyGame extends VariableFrameRateGame
 				showNotEnoughCoinsMessage = false;
 				selectedMenuOption = 0;
 			}
+		}
+		/**
+		 * Sends the selected rabbit texture color to the server via a details-for message.
+		 */
+		private void sendTextureSelection() {
+			if (protClient != null && isConnected) {
+				try {
+					UUID clientId = protClient.getClientId();
+					Vector3f pos = avatar.getWorldLocation();
+					if (clientId == null) {
+						throw new IllegalStateException("Client ID is null");
+					}
+					if (pos == null) {
+						throw new IllegalStateException("Avatar position is null");
+					}
+					// Send create message, which includes selectedRabbitColor
+					protClient.sendCreateMessage(pos);
+					System.out.println("[MyGame] Sent create message with texture: create," + clientId + "," + 
+									 pos.x() + "," + pos.y() + "," + pos.z() + "," + selectedRabbitColor);
+				} catch (IllegalStateException e) {
+					System.out.println("[MyGame] Invalid state for sending texture selection: " + e.getMessage());
+					e.printStackTrace();
+				}
+			} else {
+				System.out.println("[MyGame] Cannot send texture selection, client not connected.");
+			}
+		}
+
+		public void handleCreatePacket(String message) {
+			try {
+				String[] parts = message.split(",");
+				if (parts.length < 6) {
+					// Handle create,success packet gracefully
+					if (message.equals("create,success")) {
+						System.out.println("[MyGame] Received create,success packet, ignoring");
+						return;
+					}
+					throw new IllegalArgumentException("Invalid create packet format: " + message);
+				}
+				UUID clientId = UUID.fromString(parts[1]);
+				float x = Float.parseFloat(parts[2]);
+				float y = Float.parseFloat(parts[3]);
+				float z = Float.parseFloat(parts[4]);
+				String color = parts[5];
+				Vector3f position = new Vector3f(x, y, z);
+				System.out.println("[MyGame] Processing create packet for client " + clientId + " at " + position + " with color " + color);
+				// Changed to createGhost to match GhostManager
+				gm.createGhost(clientId, position, color);
+			} catch (Exception e) {
+				System.out.println("[MyGame] Error processing create packet: " + message + ", error: " + e.getMessage());
+				e.printStackTrace();
+			}
+		}
+
+
+		public TextureImage getGhostTexture(String color) {
+			String file = rabbitColorFiles.getOrDefault(color, "rabbittx.jpg");
+			switch (file) {
+				case "grayrabbittx.jpg": return grayrabbittx;
+				case "yellowrabbittx.jpg": return yellowrabbittx;
+				case "purplerabbittx.jpg": return purplerabbittx;
+				case "pinkrabbittx.jpg": return pinkrabbittx;
+				case "orangerabbittx.jpg": return orangerabbittx;
+				case "lavenderrabbittx.jpg": return lavenderrabbittx;
+				case "greenrabbittx.jpg": return greenrabbittx;
+				case "brownrabbittx.jpg": return brownrabbittx;
+				case "bluerabbittx.jpg": return bluerabbittx;
+				default: return rabbittx; // White
+			}
+		}
+		private void spawnSpotlightFor(Crop crop) {
+			GameObject plantGO = crop.getPlantedObject();
+			Vector3f pos = plantGO.getWorldLocation();
+			Light spot = new Light();
+			spot.setType(Light.LightType.SPOTLIGHT);
+			spot.setLocation(new Vector3f(pos.x(), pos.y()+1.5f, pos.z()));
+			spot.setDirection(new Vector3f(0,-1,0));
+			spot.setCutoffAngle(20f);
+			spot.setOffAxisExponent(5f);
+			spot.setAmbient(0.05f, 0.1f, 0.05f);
+			spot.setDiffuse(0.5f, 1.0f, 0.5f);
+			spot.setSpecular(0.5f, 1.0f, 0.5f);
+			spot.setRange(4.0f);
+			spot.setConstantAttenuation(1.0f);
+			spot.setLinearAttenuation(0.2f);
+			spot.setQuadraticAttenuation(0.05f);
+			engine.getSceneGraph().addLight(spot);
+			plantLights.put(crop.getId(), spot);
+		}
+		
+		/** Called by ProtocolClient when *any* client’s crop matures. */
+		public void onRemoteGrow(UUID cropId, Vector3f pos, String type) {
+			// if it’s one of *your* activeCrops:
+			for (Crop c : activeCrops) {
+				if (c.getId().equals(cropId)) {
+					c.forceGrowNow();             // swap mesh/texture
+					spawnSpotlightFor(c);         // show the light
+					return;
+				}
+			}
+			// or, if you keep ghost crops elsewhere, have your GhostManager do the same.
+		}
+
+
+		/**
+		 * Allows GhostManager to grab the torch shape.
+		 */
+		public ObjShape getTorchShape() {
+			return torchS;
+		}
+
+		/**
+		 * Allows GhostManager to grab the torch texture.
+		 */
+		public TextureImage getTorchTexture() {
+			return torchtx;
 		}
 
 		public GameObject getHome()   { return home; }

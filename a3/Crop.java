@@ -20,6 +20,8 @@ public class Crop {
     private boolean harvested = false;
     private boolean wateredOnce = false;
     private UUID id;  
+    private boolean readyNotified = false;
+
 
 
     public Crop(String type, double growTimeSeconds, ObjShape targetShape, TextureImage targetTexture) {
@@ -111,6 +113,19 @@ public class Crop {
                 );
             }
         }
+    }
+    /** 
+     * Advance the crop’s internal timer and return true if it just now
+     * became ready (and hasn’t been notified before). 
+    */
+    public boolean updateAndCheckReady() {
+        boolean wasReady = ready;
+        update();                 // your existing clock-based growth logic
+        if (!wasReady && ready && !readyNotified) {
+            readyNotified = true;
+            return true;
+        }
+        return false;
     }
 
 }

@@ -34,6 +34,8 @@ public class GhostManager {
     private MyGame game;
     private Vector<GhostAvatar> ghostAvs = new Vector<>();
     private Map<UUID, List<Crop>> ghostCrops = new HashMap<>();
+    private Map<UUID,String> ghostColors = new HashMap<>();
+
 
     /**
      * Constructs a GhostManager linked to the current game instance.
@@ -51,14 +53,20 @@ public class GhostManager {
      * @param p The initial position of the ghost in world coordinates.
      * @throws IOException if the shape or texture loading fails.
     */
-    public void createGhost(UUID id, Vector3f p) throws IOException {
+    public void createGhost(UUID id, Vector3f p, String color) throws IOException {
+        ghostColors.put(id, color);
+
         ObjShape s = game.getGhostShape();
-        TextureImage t = game.getGhostTexture();
-        GhostAvatar newAvatar = new GhostAvatar(id, s, t, p);
+        TextureImage t = game.getGhostTexture(color);
+        GhostAvatar newAvatar = new GhostAvatar(game, id, s, t, p);
         newAvatar.initWateringCan(
             game.getWateringCanShape(),
             game.getWateringCanTexture()
         );
+        newAvatar.initTorch(
+            game.getTorchShape(),
+            game.getTorchTexture()
+          );
       
         // copy your player’s scale:
         newAvatar.setLocalScale(new Matrix4f(game.getAvatar().getLocalScale()));
@@ -104,9 +112,10 @@ public class GhostManager {
         if (ghost != null) {
             ghost.setPosition(position);
         } else {
-            System.out.println("[Client] Ghost with ID " + ghostID + " not found. Creating new ghost...");
+            System.out.println("[Client] Ghost " + ghostID + " not found; creating with default color");
             try {
-                createGhost(ghostID, position);
+                String color = ghostColors.getOrDefault(ghostID, "White");
+                createGhost(ghostID, position, color);            
             } catch (IOException e) {
                 System.out.println("[Client] ERROR: Failed to create ghost avatar for " + ghostID);
                 e.printStackTrace();
@@ -211,8 +220,34 @@ public class GhostManager {
             for(Crop c : list)
                 c.update();
     }
+    public String getColor(UUID id) {
+        return ghostColors.getOrDefault(id, "White");
+    }
+    /** toggle a ghost’s torch GameObject on/off */
+    public void setGhostTorch(UUID id, boolean on) {
+        GhostAvatar g = findAvatar(id);
+        if (g != null) {
+            g.setTorchOn(on);                 
+            if (on)   g.getTorchLight().enable();
+            else      g.getTorchLight().disable();
+        }
+    }
     
+    /** call each frame from MyGame.update() */
+    public void updateAllGhostTorches() {
+        for (GhostAvatar g : ghostAvs) {
+            if (!g.isTorchOn()) continue;
+            GameObject t = g.getTorchObject();
+            Vector3f fwd   = t.getWorldForwardVector().normalize();
+            Vector3f up    = t.getWorldUpVector().normalize();
+            Vector3f right = t.getWorldRightVector().normalize();
+            Vector3f offset = fwd.mul(0.05f).add(up.mul(0.10f)).add(right.mul(0.05f));
+            t.setLocalTranslation(new Matrix4f().translation(offset));
+
+        }
+    }
     
+
     
     
     
