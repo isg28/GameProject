@@ -183,7 +183,7 @@ public class MyGame extends VariableFrameRateGame
 		rabbitColorFiles.put("Brown",    "brownrabbittx.jpg");
 		rabbitColorFiles.put("Blue",     "bluerabbittx.jpg");
 	}
-
+	private int selectedMenuOption = 0;
 
 	/**
     * Constructs the game instance and initializes the game loop.
@@ -1036,43 +1036,7 @@ public class MyGame extends VariableFrameRateGame
 			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 		);
 
-		im.associateActionWithAllKeyboards(
-			net.java.games.input.Component.Identifier.Key.LEFT,
-			new AbstractInputAction() {
-				public void performAction(float time, Event event) {
-					orbitController.orbitAzimuth(-2.0f); 
-				}
-			},
-			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
-		im.associateActionWithAllKeyboards(
-			net.java.games.input.Component.Identifier.Key.RIGHT,
-			new AbstractInputAction() {
-				public void performAction(float time, Event event) {
-					orbitController.orbitAzimuth(2.0f); 
-				}
-			},
-			InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-		);
 
-			im.associateActionWithAllKeyboards(
-				net.java.games.input.Component.Identifier.Key.UP,
-				new AbstractInputAction() {
-					public void performAction(float time, Event event) {
-						orbitController.orbitElevation(2.0f);
-					}
-				},
-				InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-			);
-			im.associateActionWithAllKeyboards(
-				net.java.games.input.Component.Identifier.Key.DOWN,
-				new AbstractInputAction() {
-					public void performAction(float time, Event event) {
-						orbitController.orbitElevation(-2.0f); 
-					}
-				},
-				InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
-			);
 				im.associateActionWithAllKeyboards(
 					net.java.games.input.Component.Identifier.Key.COMMA,
 					new AbstractInputAction() {
@@ -1091,6 +1055,42 @@ public class MyGame extends VariableFrameRateGame
 					},
 					InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN
 				);
+
+		        im.associateActionWithAllKeyboards(
+                net.java.games.input.Component.Identifier.Key.UP,
+                new AbstractInputAction() {
+                    public void performAction(float time, Event event) {
+                        if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
+							int maxOption = (marketMode == MarketMode.CHOOSING || isBuyingSeeds) ? 2 : 2;
+							selectedMenuOption = (selectedMenuOption + 1) % (maxOption + 1);                        } 
+                    }
+                },
+                InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+        );
+        im.associateActionWithAllKeyboards(
+                net.java.games.input.Component.Identifier.Key.DOWN,
+                new AbstractInputAction() {
+                    public void performAction(float time, Event event) {
+                        if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
+							int maxOption = (marketMode == MarketMode.CHOOSING || isBuyingSeeds) ? 2 : 2;
+							selectedMenuOption = (selectedMenuOption - 1 + maxOption + 1) % (maxOption + 1);
+                        } 
+                    }
+                },
+                InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+        );
+		im.associateActionWithAllKeyboards(
+			net.java.games.input.Component.Identifier.Key.SPACE,
+			new AbstractInputAction() {
+				@Override
+				public void performAction(float time, Event event) {
+					if (marketMode != MarketMode.NONE || isBuyingSeeds || showNotEnoughCoinsMessage) {
+						selectMenuOption();
+					}
+				}
+			},
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+		);
 
 				
 		im.associateActionWithAllGamepads(
@@ -1148,16 +1148,44 @@ public class MyGame extends VariableFrameRateGame
 			},
 			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
 		);
+        im.associateActionWithAllGamepads(
+                Component.Identifier.Button._1, //A
+                new AbstractInputAction() {
+                    @Override
+                    public void performAction(float time, Event e) {
+                        if (e.getValue() > 0.5f) {
+                            if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
+                                selectMenuOption();
+                            } else {
+                                openMenu();
+                            }
+                        }
+                    }
+                },
+                InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+        );
 		im.associateActionWithAllGamepads(
-			Component.Identifier.Button._1, // A
+			Component.Identifier.Axis.POV,
 			new AbstractInputAction() {
-				@Override public void performAction(float time, Event e) {
-					if (e.getValue() > 0.5f) 
-						openMenu();
+				@Override
+				public void performAction(float time, Event e) {
+					float povValue = e.getValue();
+					if (povValue == Component.POV.UP) {
+						if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
+							int maxOption = (marketMode == MarketMode.CHOOSING || isBuyingSeeds) ? 2 : 2;
+							selectedMenuOption = (selectedMenuOption + 1) % (maxOption + 1);
+						}
+					} else if (povValue == Component.POV.DOWN) {
+						if (marketMode == MarketMode.CHOOSING || marketMode == MarketMode.SELLING || isBuyingSeeds) {
+							int maxOption = (marketMode == MarketMode.CHOOSING || isBuyingSeeds) ? 2 : 2;
+							selectedMenuOption = (selectedMenuOption - 1 + maxOption + 1) % (maxOption + 1);
+						}
+					}
 				}
 			},
-			InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY
+			InputManager.INPUT_ACTION_TYPE.ON_PRESS_AND_RELEASE
 		);
+		
 
 
 
@@ -1360,7 +1388,7 @@ public class MyGame extends VariableFrameRateGame
 
 		// build and set HUD
     	String dispStr1 = "Objective: Buy seeds, plant crops with E, harvest with H, and sell them at the market to earn coins!";
-		String dispStr3 = "Surveillance Camera on Dolphin";
+		String dispStr3 = "Surveillance Camera on Rabbit";
 		String coinStr = "Coins: " + coins;
 
 		Vector3f hud1Color = new Vector3f(1,0,0);
@@ -1413,56 +1441,42 @@ public class MyGame extends VariableFrameRateGame
 			}
 		}
 		engine.getHUDmanager().setHUD6(invStr.toString(), new Vector3f(0.9f, 1f, 1f), 20, 110);
+        Vector3f highlightColor = new Vector3f(1f, 1f, 0f); // Yellow for highlight
+        Vector3f normalColor = new Vector3f(1f, 1f, 1f);   // White for non selected
+        int baseX = 600;
+        int baseY = 200;
 
-		if (marketMode == MarketMode.CHOOSING) {
-			int baseX = 600;
-			int baseY = 200;
-			engine.getHUDmanager().setHUD8("+--------------------------+", new Vector3f(1f, 1f, 1f), baseX, baseY);
-			engine.getHUDmanager().setHUD9("| Press X to Cancel         |", new Vector3f(1f, 0.5f, 0.5f), baseX, baseY + 30);
-			engine.getHUDmanager().setHUD10("| Press S to Sell         |", new Vector3f(0.9f, 1f, 0.6f), baseX, baseY + 60);
-			engine.getHUDmanager().setHUD11("| Press B to Buy       |", new Vector3f(0.9f, 1f, 0.6f), baseX, baseY + 90);
-			engine.getHUDmanager().setHUD12("+--------------------------+", new Vector3f(1f, 1f, 1f), baseX, baseY + 120);
-		}
-		if (marketMode == MarketMode.SELLING) {
-			int baseX = 600;
-			int baseY = 200;
-			engine.getHUDmanager().setHUD8("+------------------------------+", new Vector3f(1f, 1f, 1f), baseX, baseY);
-			engine.getHUDmanager().setHUD9("| Press X to exit  |", new Vector3f(1f, 0.5f, 0.5f), baseX, baseY + 30);
-			engine.getHUDmanager().setHUD10("| Press A to sell all          |", new Vector3f(1f, 1f, 1f), baseX, baseY + 60);
-			engine.getHUDmanager().setHUD11("| Press 1-5 to sell slot items        |", new Vector3f(1f, 1f, 1f), baseX, baseY + 90);
-			engine.getHUDmanager().setHUD12("+------------------------------+", new Vector3f(1f, 1f, 1f), baseX, baseY + 120);
-		}
-		
-		if (isBuyingSeeds) {
-			int baseX = 600;
-			int baseY = 200;
-	
-			engine.getHUDmanager().setHUD8("+----------------------+ ", new Vector3f(1f, 1f, 1f), baseX, baseY);
-			engine.getHUDmanager().setHUD9("| [2] Buy Carrot - 2 Coins      |", new Vector3f(1f, 1f, 1f), baseX, baseY + 30);
-			engine.getHUDmanager().setHUD10("| [1] Buy Wheat - 2 Coins  |", new Vector3f(1f, 1f, 1f), baseX, baseY + 60);
-			engine.getHUDmanager().setHUD11("|  SEED SHOP  |", new Vector3f(0.9f, 1f, 0.6f), baseX, baseY + 90);
-			engine.getHUDmanager().setHUD12("+----------------------+ ", new Vector3f(1f, 1f, 1f), baseX, baseY + 120);
-			
-		}
-		
-		if (marketMode == MarketMode.NONE && !isBuyingSeeds) {
-			engine.getHUDmanager().setHUD8("", new Vector3f(0, 0, 0), 0, 0);
-			engine.getHUDmanager().setHUD9("", new Vector3f(0, 0, 0), 0, 0);
-			engine.getHUDmanager().setHUD10("", new Vector3f(0, 0, 0), 0, 0);
-			engine.getHUDmanager().setHUD11("", new Vector3f(0, 0, 0), 0, 0);
-			engine.getHUDmanager().setHUD12("", new Vector3f(0, 0, 0), 0, 0);
-
-		}
-
-		if (showNotEnoughCoinsMessage) {
-			int baseX = 600;
-			int baseY = 200;
-			engine.getHUDmanager().setHUD8("+----------------------+ ", new Vector3f(1f, 0.2f, 0.2f), baseX, baseY);
-			engine.getHUDmanager().setHUD9("|  Press X to close    |", new Vector3f(1f, 0.2f, 0.2f), baseX, baseY + 30);
-			engine.getHUDmanager().setHUD10("|  Not enough coins!   |", new Vector3f(1f, 0.5f, 0.5f), baseX, baseY + 60);
-			engine.getHUDmanager().setHUD11("", new Vector3f(0, 0, 0), 0, 0);
-			engine.getHUDmanager().setHUD12("+----------------------+ ", new Vector3f(1f, 1f, 1f), baseX, baseY + 90);
-		}
+        if (marketMode == MarketMode.CHOOSING) {
+            engine.getHUDmanager().setHUD8("+--------------------------+", normalColor, baseX, baseY);
+            engine.getHUDmanager().setHUD9("| Press to Cancel         |", selectedMenuOption == 0 ? highlightColor : normalColor, baseX, baseY + 30);
+            engine.getHUDmanager().setHUD10("| Press to Sell         |", selectedMenuOption == 1 ? highlightColor : normalColor, baseX, baseY + 60);
+            engine.getHUDmanager().setHUD11("| Press to Buy       |", selectedMenuOption == 2 ? highlightColor : normalColor, baseX, baseY + 90);
+            engine.getHUDmanager().setHUD12("+--------------------------+", normalColor, baseX, baseY + 120);
+        } else if (marketMode == MarketMode.SELLING) {
+			engine.getHUDmanager().setHUD8("+------------------------------+", normalColor, baseX, baseY);
+			engine.getHUDmanager().setHUD9("| Press to exit               |", selectedMenuOption == 0 ? highlightColor : normalColor, baseX, baseY + 30);
+			engine.getHUDmanager().setHUD10("| Press to sell everything   |", selectedMenuOption == 1 ? highlightColor : normalColor, baseX, baseY + 60);
+			engine.getHUDmanager().setHUD11("| Press to sell only crops   |", selectedMenuOption == 2 ? highlightColor : normalColor, baseX, baseY + 90);
+			engine.getHUDmanager().setHUD12("+------------------------------+", normalColor, baseX, baseY + 120);
+		} else if (isBuyingSeeds) {
+            engine.getHUDmanager().setHUD8("+----------------------+ ", normalColor, baseX, baseY);
+            engine.getHUDmanager().setHUD9("| Buy Carrot - 2 Coins      |", selectedMenuOption == 0 ? highlightColor : normalColor, baseX, baseY + 30);
+            engine.getHUDmanager().setHUD10("| Buy Wheat - 2 Coins  |", selectedMenuOption == 1 ? highlightColor : normalColor, baseX, baseY + 60);
+            engine.getHUDmanager().setHUD11("|  Press to Cancel  |", selectedMenuOption == 2 ? highlightColor : normalColor, baseX, baseY + 90);
+            engine.getHUDmanager().setHUD12("+----------------------+ ", normalColor, baseX, baseY + 120);
+        } else if (showNotEnoughCoinsMessage) {
+            engine.getHUDmanager().setHUD8("+----------------------+ ", new Vector3f(1f, 0.2f, 0.2f), baseX, baseY);
+            engine.getHUDmanager().setHUD9("|  Press X to close    |", new Vector3f(1f, 0.2f, 0.2f), baseX, baseY + 30);
+            engine.getHUDmanager().setHUD10("|  Not enough coins!   |", new Vector3f(1f, 0.5f, 0.5f), baseX, baseY + 60);
+            engine.getHUDmanager().setHUD11("", new Vector3f(0, 0, 0), 0, 0);
+            engine.getHUDmanager().setHUD12("+----------------------+ ", new Vector3f(1f, 1f, 1f), baseX, baseY + 90);
+        } else {
+            engine.getHUDmanager().setHUD8("", new Vector3f(0, 0, 0), 0, 0);
+            engine.getHUDmanager().setHUD9("", new Vector3f(0, 0, 0), 0, 0);
+            engine.getHUDmanager().setHUD10("", new Vector3f(0, 0, 0), 0, 0);
+            engine.getHUDmanager().setHUD11("", new Vector3f(0, 0, 0), 0, 0);
+            engine.getHUDmanager().setHUD12("", new Vector3f(0, 0, 0), 0, 0);
+        }
 		
 		cropsToRemove.clear();
 		objectsToDisable.clear();
@@ -1814,84 +1828,6 @@ public class MyGame extends VariableFrameRateGame
 			case KeyEvent.VK_0:
 				shouldResetSkybox = true;
 				break;
-			
-			case KeyEvent.VK_1:
-				if (!inMarketUI) {
-					activeTool = Tool.WATERING_CAN;
-					torch.getRenderStates().disableRendering();
-					wateringcan.getRenderStates().enableRendering();
-				}
-				if (isBuyingSeeds && coins >= 2) {
-					selectedSeedType = "Wheat";
-					addToInventory("Seed_Wheat");
-					coins -= 2;
-					isBuyingSeeds = false;
-					showNotEnoughCoinsMessage = false;
-				} else if (isBuyingSeeds){
-					showNotEnoughCoinsMessage = true;
-				}
-				else if (marketMode == MarketMode.SELLING) {
-					if (inventory[0] != null) {
-						if (inventory[0].startsWith("Seed")) {
-							coins += 1; 
-						} else if (inventory[0].equals("Wheat")) {
-							coins += 5;
-						} else if (inventory[0].equals("Carrot")) {
-							coins += 10;
-						}
-						inventory[0] = null;
-						inventoryCount--;
-						compactInventory();
-					}
-				}
-            break;
-
-			case KeyEvent.VK_2:
-				if (!inMarketUI) {
-					activeTool = Tool.TORCH;
-					wateringcan.getRenderStates().disableRendering();
-					torch.getRenderStates().enableRendering();
-				}
-				if (isBuyingSeeds && coins >= 5) {
-					selectedSeedType = "Carrot";
-					addToInventory("Seed_Carrot");
-					coins -= 5;
-					isBuyingSeeds = false;
-				} else if (isBuyingSeeds) {
-					showNotEnoughCoinsMessage = true;
-				}else if (marketMode == MarketMode.SELLING) {
-					if (inventory[1] != null) {
-						if (inventory[1].startsWith("Seed")) {
-							coins += 1;
-						} else if (inventory[1].equals("Wheat")) {
-							coins += 5;
-						} else if (inventory[1].equals("Carrot")) {
-							coins += 10;
-						}
-						inventory[1] = null;
-						inventoryCount--;
-						compactInventory();
-					}
-				}
-            break;
-
-			case KeyEvent.VK_3: case KeyEvent.VK_4: case KeyEvent.VK_5:
-				if (marketMode == MarketMode.SELLING) {
-					int index = e.getKeyCode() - KeyEvent.VK_1;
-					if (inventory[index] != null) {
-						if (inventory[index].startsWith("Seed")) {
-							coins += 1;
-						} else if (inventory[index].equals("Wheat")) {
-							coins += 5;
-						} else if (inventory[index].equals("Carrot")) {
-							coins += 10;
-						}
-						inventory[index] = null;
-						inventoryCount--;
-						compactInventory();
-					}
-				}
-            break;
 
 
 			case KeyEvent.VK_W:
@@ -1939,12 +1875,12 @@ public class MyGame extends VariableFrameRateGame
 				Camera rightCam = engine.getRenderSystem().getViewport("RIGHT").getCamera();
 				Camera leftCam = engine.getRenderSystem().getViewport("LEFT").getCamera();
 				if (rightCam != null) {
-					resetViewportCamera(rightCam, rightViewportOffset);
+					resetViewportCamera(rightCam);
 				}
 				if (leftCam != null) {
-					resetViewportCamera(leftCam, leftViewportOffset);
+					resetViewportCamera(leftCam);
 				}
-				break;
+            break;
 			case KeyEvent.VK_J: 
 				panRightViewportCamera(-0.1f, 0);
 				break;
@@ -2002,6 +1938,12 @@ public class MyGame extends VariableFrameRateGame
 				}
 			break;
 			case KeyEvent.VK_SPACE:
+				System.out.println("[MyGame] SPACE key pressed. MarketMode: " + marketMode + ", isBuyingSeeds: " + isBuyingSeeds + ", showNotEnoughCoinsMessage: " + showNotEnoughCoinsMessage + ", selectedMenuOption: " + selectedMenuOption);
+				if (marketMode != MarketMode.NONE || isBuyingSeeds || showNotEnoughCoinsMessage) {
+					System.out.println("[MyGame] Calling selectMenuOption for menu interaction");
+					selectMenuOption();
+					break;
+				}
 				switch(activeTool){
 					case WATERING_CAN:
 						isWatering = !isWatering;
@@ -2366,10 +2308,15 @@ public class MyGame extends VariableFrameRateGame
 	 * @param cam Camera to reset
 	 * @param offset The original offset to maintain relative positioning
 	 */
-	private void resetViewportCamera(Camera cam, Vector3f offset) {
-		Vector3f newPos = new Vector3f(avatar.getWorldLocation()).add(offset);
-		cam.setLocation(newPos);
-		cam.lookAt(avatar);
+	private void resetViewportCamera(Camera cam) {
+		Vector3f avatarPos = avatar.getWorldLocation();
+		
+		float cameraHeight = avatarPos.y() + 2.0f; 
+		cam.setLocation(new Vector3f(avatarPos.x(), cameraHeight, avatarPos.z()));
+		
+		cam.setN(new Vector3f(0, -1, 0)); 
+		cam.setV(new Vector3f(0, 0, -1)); 
+		cam.setU(new Vector3f(1, 0, 0));  
 	}
 
 	/**
@@ -2669,6 +2616,127 @@ public class MyGame extends VariableFrameRateGame
 					activeTool = Tool.NONE;
 					// nothing left to enable
 					break;
+			}
+		}
+
+		// Method to handle menu option selection
+		private void selectMenuOption() {
+			System.out.println("[MyGame] selectMenuOption called. MarketMode: " + marketMode + ", isBuyingSeeds: " + isBuyingSeeds + ", showNotEnoughCoinsMessage: " + showNotEnoughCoinsMessage + ", selectedMenuOption: " + selectedMenuOption);
+			if (marketMode == MarketMode.CHOOSING) {
+				switch (selectedMenuOption) {
+					case 0: // Cancel
+						System.out.println("[MyGame] Selected Cancel, closing market menu");
+						marketMode = MarketMode.NONE;
+						selectedMenuOption = 0;
+						break;
+					case 1: // Sell
+						System.out.println("[MyGame] Selected Sell, entering SELLING mode");
+						marketMode = MarketMode.SELLING;
+						selectedMenuOption = 0;
+						break;
+					case 2: // Buy
+						System.out.println("[MyGame] Selected Buy, entering seed shop");
+						isBuyingSeeds = true;
+						marketMode = MarketMode.NONE;
+						selectedMenuOption = 0;
+						break;
+				}
+			} else if (marketMode == MarketMode.SELLING) {
+				switch (selectedMenuOption) {
+					case 0: // Exit
+						System.out.println("[MyGame] Selected Exit, closing sell menu");
+						marketMode = MarketMode.NONE;
+						selectedMenuOption = 0;
+						break;
+					case 1: // Sell everything
+						System.out.println("[MyGame] Selected Sell Everything, selling all items in inventory");
+						for (int i = 0; i < inventory.length; i++) {
+							if (inventory[i] != null) {
+								if (inventory[i].equals("Wheat")) {
+									coins += 5;
+								} else if (inventory[i].equals("Carrot")) {
+									coins += 10;
+								} else if (inventory[i].startsWith("Seed")) {
+									coins += 1;
+								}
+								inventory[i] = null;
+							}
+						}
+						compactInventory();
+						inventoryCount = 0;
+						break;
+					case 2: // Sell only crops
+						System.out.println("[MyGame] Selected Sell Only Crops, selling all crops in inventory");
+						for (int i = 0; i < inventory.length; i++) {
+							if (inventory[i] != null && !inventory[i].startsWith("Seed")) {
+								if (inventory[i].equals("Wheat")) {
+									coins += 5;
+								} else if (inventory[i].equals("Carrot")) {
+									coins += 10;
+								}
+								inventory[i] = null;
+							}
+						}
+						compactInventory();
+						inventoryCount = 0;
+						for (String item : inventory) {
+							if (item != null) inventoryCount++;
+						}
+						break;
+				}
+			} else if (isBuyingSeeds) {
+				switch (selectedMenuOption) {
+					case 0: // Buy Carrot
+						System.out.println("[MyGame] Selected Buy Carrot, coins: " + coins + ", inventoryCount: " + inventoryCount);
+						if (coins >= 2 && inventoryCount < inventory.length) {
+							selectedSeedType = "Seed_Carrot";
+							for (int i = 0; i < inventory.length; i++) {
+								if (inventory[i] == null) {
+									inventory[i] = selectedSeedType;
+									inventoryCount++;
+									coins -= 2;
+									break;
+								}
+							}
+							isBuyingSeeds = false;
+							selectedMenuOption = 0;
+							System.out.println("[MyGame] Bought Seed_Carrot, new coins: " + coins);
+						} else {
+							showNotEnoughCoinsMessage = true;
+							System.out.println("[MyGame] Cannot buy Carrot: " + (coins < 2 ? "Not enough coins" : "Inventory full"));
+						}
+						break;
+					case 1: // Buy Wheat
+						System.out.println("[MyGame] Selected Buy Wheat, coins: " + coins + ", inventoryCount: " + inventoryCount);
+						if (coins >= 2 && inventoryCount < inventory.length) {
+							selectedSeedType = "Seed_Wheat";
+							for (int i = 0; i < inventory.length; i++) {
+								if (inventory[i] == null) {
+									inventory[i] = selectedSeedType;
+									inventoryCount++;
+									coins -= 2;
+									break;
+								}
+							}
+							isBuyingSeeds = false;
+							selectedMenuOption = 0;
+							System.out.println("[MyGame] Bought Seed_Wheat, new coins: " + coins);
+						} else {
+							showNotEnoughCoinsMessage = true;
+							System.out.println("[MyGame] Cannot buy Wheat: " + (coins < 2 ? "Not enough coins" : "Inventory full"));
+						}
+						break;
+					case 2: // Exit Seed Shop
+						System.out.println("[MyGame] Selected Exit Seed Shop");
+						isBuyingSeeds = false;
+						selectedMenuOption = 0;
+						break;
+				}
+			}
+			if (showNotEnoughCoinsMessage) {
+				System.out.println("[MyGame] Showing not enough coins message, closing with SPACE");
+				showNotEnoughCoinsMessage = false;
+				selectedMenuOption = 0;
 			}
 		}
 
