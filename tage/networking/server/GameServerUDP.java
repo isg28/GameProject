@@ -27,7 +27,7 @@ import java.util.HashMap;
  *   <li><code>bye,&lt;UUID&gt;</code></li>
  *   <li><code>skybox,&lt;index&gt;</code></li>
  * </ul>
- * @author 
+   @author Isabel Santoyo-Garcia
  */
 public class GameServerUDP extends GameConnectionServer<UUID> {
     private HashMap<UUID, String[]> clientPositions = new HashMap<>();
@@ -67,21 +67,24 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     handleJoin(msgTokens, senderIP, sndPort);
                     break;
 
-                case "create":
-                    UUID clientID1 = UUID.fromString(msgTokens[1]);
-                    String[] pos = { msgTokens[2], msgTokens[3], msgTokens[4] };
-                    String color = msgTokens.length >= 6 ? msgTokens[5] : "White";
-                    clientColors.put(clientID1, color);
-                    System.out.println("[Server] Processing create request for " + clientID1 + " with color " + color);
-                    sendCreateMessages(clientID1, pos, color);
-                    sendWantsDetailsMessages(clientID1);
-                break;
+                    case "create":
+                        clientID = UUID.fromString(msgTokens[1]);
+                        String[] pos = { msgTokens[2], msgTokens[3], msgTokens[4] };
+                        String color = msgTokens.length >= 6 ? msgTokens[5] : "White";
+                        clientColors.put(clientID, color);
+                        System.out.println("[Server] Processing create request for " + clientID + " with color " + color);
+                        clientPositions.put(clientID, pos);
+                        sendCreateMessages(clientID, pos, color);
+                        sendWantsDetailsMessages(clientID);
+                    break;
 
-                case "bye":
-                    clientID = UUID.fromString(msgTokens[1]);
-                    System.out.println("[Server] Client " + clientID + " disconnected.");
-                    sendByeMessages(clientID);
-                    removeClient(clientID);
+                    case "bye":
+                        clientID = UUID.fromString(msgTokens[1]);
+                        System.out.println("[Server] Client " + clientID + " disconnected.");
+                        sendByeMessages(clientID);
+                        removeClient(clientID);
+                        clientPositions.remove(clientID);
+                        clientColors.remove(clientID);
                     break;
 
                 case "move":
@@ -100,7 +103,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                 break;
                 case "water":
                     UUID cid   = UUID.fromString(msgTokens[1]);
-                    // msgTokens[2] is the 1 or 0, but the server just relays it
                     try {
                         forwardPacketToAll(message, cid);
                     } catch (IOException e) {
@@ -117,22 +119,18 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     }
                 break;
 
-
                 case "rotate":
-                    // tokens: 0=rotate, 1=UUID, 2=x,3=y,4=z,5=w
                     if (msgTokens.length < 6) {
                         System.out.println("[Server] ERROR: Rotate message too short: " + message);
                         break;
                     }
                     UUID clientID2 = UUID.fromString(msgTokens[1]);
-                    // pull the four components back into a String[] so our helper can broadcast them
                     String[] rot = { msgTokens[2], msgTokens[3], msgTokens[4], msgTokens[5] };
                     sendRotateMessages(clientID2, rot);
                 break;
 
                 case "plant":
                 case "harvest":
-                    // simply relay to all other clients
                     UUID src = UUID.fromString(msgTokens[1]);
                     try {
                         forwardPacketToAll(message, src);
@@ -142,7 +140,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
                     break;
 
                     case "grow":
-                        // simply relay to all other clients
                         UUID src1 = UUID.fromString(msgTokens[1]);
                         try {
                         forwardPacketToAll((String)o, src1);
@@ -178,11 +175,8 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             addClient(ci, clientID);
             sendJoinedMessage(clientID, true);
             System.out.println("[Server] Client " + clientID + " joined.");
-    
-            // Ask existing players to send their details to the new player
             sendWantsDetailsMessages(clientID);
-            sendSkyboxToClient(clientID); 
-
+            sendSkyboxToClient(clientID);
         } catch (IOException e) {
             System.out.println("[Server] Error processing join request!");
             e.printStackTrace();
@@ -203,6 +197,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             e.printStackTrace();
         }
     }
+
     /**
      * Broadcasts a new client's creation to all existing clients.
      *
@@ -234,7 +229,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             System.out.println("[Server] Sending existing clients to " + newClientID);
             for (UUID existing : getClients().keySet()) {
                 if (existing.equals(newClientID)) continue;
-                String[] position = clientPositions.getOrDefault(existing, new String[]{"0.0","0.0","0.0"});
+                String[] position = clientPositions.getOrDefault(existing, new String[]{"0.0", "0.0", "0.0"});
                 String color = clientColors.getOrDefault(existing, "White");
                 String msg = String.join(",",
                     "create",
@@ -248,7 +243,6 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             e.printStackTrace();
         }
     }
-    
     /**
      * Broadcasts a movement update to all clients except the sender.
      *
@@ -317,7 +311,11 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Sends the avatar's rotation to each client.
+     *
+     * @param clientID The UUID of the new client.
+    */
     public void sendRotateMessages(UUID clientID, String[] rot) {
         try {
             String msg = String.join(",", 

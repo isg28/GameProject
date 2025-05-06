@@ -28,13 +28,17 @@ import java.util.ArrayList;
  * is uniquely identified by a UUID.
  * </p>
  * 
- * @author 
+ * @author Isabel Santoyo-Garcia
  */
 public class GhostManager {
     private MyGame game;
     private Vector<GhostAvatar> ghostAvs = new Vector<>();
     private Map<UUID, List<Crop>> ghostCrops = new HashMap<>();
     private Map<UUID,String> ghostColors = new HashMap<>();
+    private HashMap<UUID, GhostAvatar> ghostAvatars = new HashMap<>();
+    private static final float CLEANUP_INTERVAL = 5.0f;
+    private float cleanupTimer = 0f;
+
 
 
     /**
@@ -54,51 +58,84 @@ public class GhostManager {
      * @throws IOException if the shape or texture loading fails.
     */
     public void createGhost(UUID id, Vector3f p, String color) throws IOException {
+        if (ghostAvatars.containsKey(id)) {
+            System.out.println("[GhostManager] Ghost avatar already exists for client ID: " + id + ", ignoring create request");
+            return;
+        }
         ghostColors.put(id, color);
-
+    
         ObjShape s = game.getGhostShape();
         TextureImage t = game.getGhostTexture(color);
         GhostAvatar newAvatar = new GhostAvatar(game, id, s, t, p);
-        newAvatar.initWateringCan(
-            game.getWateringCanShape(),
-            game.getWateringCanTexture()
-        );
-        newAvatar.initTorch(
-            game.getTorchShape(),
-            game.getTorchTexture()
-          );
-      
-        // copy your player’s scale:
+        newAvatar.initWateringCan(game.getWateringCanShape(), game.getWateringCanTexture());
+        newAvatar.initTorch(game.getTorchShape(), game.getTorchTexture());
         newAvatar.setLocalScale(new Matrix4f(game.getAvatar().getLocalScale()));
-      ghostAvs.add(newAvatar);
+        
+        ghostAvs.add(newAvatar);
+        ghostAvatars.put(id, newAvatar); 
     }
       
-
     /**
      * Removes a ghost avatar from the scene and internal list.
      *
      * @param id The UUID of the ghost avatar to remove.
     */
     public void removeGhostAvatar(UUID id) {
-        GhostAvatar ghostAvatar = findAvatar(id);
+        GhostAvatar ghostAvatar = ghostAvatars.get(id); 
         if (ghostAvatar != null) {
+            GameObject wateringCan = ghostAvatar.getWateringCanObject();
+            GameObject torch = ghostAvatar.getTorchObject();
+            if (wateringCan != null) {
+                game.getEngine().getSceneGraph().removeGameObject(wateringCan);
+            }
+            if (torch != null) {
+                game.getEngine().getSceneGraph().removeGameObject(torch);
+            }
+            if (ghostAvatar.getTorchLight() != null) {
+                ghostAvatar.getTorchLight().disable();
+            }
             game.getEngine().getSceneGraph().removeGameObject(ghostAvatar);
-            ghostAvs.remove(ghostAvatar); 
+            ghostAvs.remove(ghostAvatar);
+            ghostAvatars.remove(id); 
+            ghostColors.remove(id);
+            ghostCrops.remove(id);
         } else {
-            System.out.println("Unable to find ghost in list");
+            System.out.println("[GhostManager] Unable to find ghost with ID: " + id);
+        }
+    }
+        /**
+     * Periodically cleans up stale or invalid ghost avatars.
+     *
+     * @param dtSec Elapsed time in seconds since the last update.
+     */
+    public void cleanGhostAvatars(float dtSec) {
+        cleanupTimer += dtSec;
+        if (cleanupTimer >= CLEANUP_INTERVAL) {
+            cleanupTimer = 0f;
+            List<GhostAvatar> toRemove = new ArrayList<>();
+            for (GhostAvatar ghost : ghostAvs) {
+                if (ghost == null || !ghost.getRenderStates().renderingEnabled()) { 
+                    toRemove.add(ghost);
+                }
+            }
+            for (GhostAvatar ghost : toRemove) {
+                if (ghost != null) {
+                    UUID id = ghost.getId();
+                    System.out.println("[GhostManager] Cleaning up stale ghost avatar ID: " + id);
+                    removeGhostAvatar(id);
+                } else {
+                    ghostAvs.remove(null); 
+                    System.out.println("[GhostManager] Removed null ghost avatar entry");
+                }
+            }
         }
     }
 
     // Find a ghost avatar by ID
     private GhostAvatar findAvatar(UUID id) {
-        for (GhostAvatar ghostAvatar : ghostAvs) {
-            if (ghostAvatar.getId().compareTo(id) == 0) {  
-                return ghostAvatar;
-            }
-        }
-        return null;
+        return ghostAvatars.get(id); 
     }
-
+    
     /**
      * Updates the position of a ghost avatar.
      * If the ghost doesn't exist yet, this method creates it.
@@ -122,12 +159,20 @@ public class GhostManager {
             }
         }
     }
+    /**
+     * Retrieves an existing ghost avatar instance.
+     *
+     * @param id The UUID of the ghost.
+     * @return The GhostAvatar, or null if not found.
+     */
     public GhostAvatar getGhostAvatar(UUID id) {
         return findAvatar(id);
     }
     
     /**  
-     * Updates a ghost’s orientation.  
+     * Updates a ghost’s orientation. 
+     * @param id The UUID of the ghost.
+     * @param q  The new rotation quaternion. 
      */
     public void updateGhostRotation(UUID id, Quaternionf q) {
         GhostAvatar ghost = findAvatar(id);
@@ -136,17 +181,24 @@ public class GhostManager {
             ghost.setLocalRotation(m);
         }
     }
+    /**
+     * Sets whether a ghost avatar is currently watering.
+     *
+     * @param id The UUID of the ghost.
+     * @param on True to show watering-can and spawn droplets.
+     */
     public void setGhostWatering(UUID id, boolean on) {
         GhostAvatar g = findAvatar(id);
         if (g != null) g.setWatering(on);
     }
 
-    /** call each frame from MyGame.update() */
+    /**
+     * Called each frame from MyGame.update() to position watering-cans.
+     */    
     public void updateAllGhostCans() {
         for (GhostAvatar g : ghostAvs) {
             if (!g.isWatering()) continue;
             GameObject can = g.getWateringCanObject();
-            // same offset logic as local:
             Vector3f fwd   = can.getWorldForwardVector().normalize();
             Vector3f right = can.getWorldRightVector().normalize();
             Vector3f up    = can.getWorldUpVector().normalize();
@@ -158,7 +210,11 @@ public class GhostManager {
         }
     }
 
-    /** call each frame from MyGame.update() */
+   /**
+     * Called each frame from MyGame.update() to spawn and update droplets.
+     *
+     * @param dtSec elapsed time in seconds since last update
+     */    
     public void updateAllGhostDroplets(float dtSec) {
         UUID me = game.getProtocolClient().getClientId();
         for (GhostAvatar g : ghostAvs) {
@@ -167,9 +223,10 @@ public class GhostManager {
             g.updateDroplets(game.getPhysicsEngine(), dtSec, game.getWaterCubeShape());
         }
     }
-    /** place this somewhere in GhostManager **/
+    /**
+     * Helper to create a new visual GameObject for a ghost crop.
+     */    
     private GameObject createGhostCropObject(Vector3f pos) {
-        // use your game’s plant shape & texture
         ObjShape plantShape   = game.plantS;
         TextureImage plantTex = game.planttx;
         GameObject planted = new GameObject(GameObject.root(), plantShape, plantTex);
@@ -178,11 +235,18 @@ public class GhostManager {
         return planted;
     }
 
-    
+    /**
+     * Handles a ghost planting action by creating a Crop and GameObject.
+     *
+     * @param who     The avatar UUID who planted.
+     * @param cropId  The UUID of the new crop.
+     * @param pos     The planting position.
+     * @param type    "Carrot" or "Wheat".
+    */
     public void ghostPlant(UUID who, UUID cropId, Vector3f pos, String type) {
-        ObjShape     targetShape   = type.equals("Carrot") ? game.carrotS  : game.wheatS;
+        ObjShape targetShape = type.equals("Carrot") ? game.carrotS  : game.wheatS;
         TextureImage targetTexture = type.equals("Carrot") ? game.carrottx : game.wheattx;
-        double       growTimeSec   = type.equals("Carrot") ? 45            : 30;
+        double growTimeSec = type.equals("Carrot") ? 45 : 30;
         Crop c = new Crop(type, growTimeSec, targetShape, targetTexture);
         c.setId(cropId);                     
         GameObject obj = createGhostCropObject(pos);
@@ -191,8 +255,13 @@ public class GhostManager {
         game.activeCrops.add(c);
     }
     
+    /**
+     * Handles a ghost harvesting action, removing the crop.
+     *
+     * @param who    The avatar UUID who harvested.
+     * @param cropId The UUID of the harvested crop.
+     */
     public void ghostHarvest(UUID who, UUID cropId) {
-        // find and remove that cropId no matter who planted it
         for (List<Crop> list : ghostCrops.values()) {
             Iterator<Crop> iter = list.iterator();
             while(iter.hasNext()) {
@@ -207,23 +276,43 @@ public class GhostManager {
             }
         }
     }
+    /**
+     * Handles a ghost growth event, forcing the crop to mature.
+     *
+     * @param who    The avatar UUID whose crop grew.
+     * @param cropId The UUID of the growing crop.
+    */
     public void ghostGrow(UUID who, UUID cropId, Vector3f pos, String type) {
         List<Crop> list = ghostCrops.get(who);
         if (list==null) return;
         for(Crop c:list) if(c.getId().equals(cropId)) {
-          c.forceGrowNow();    // or: replace its plantedObject with grown shape/tex
+          c.forceGrowNow();    
           break;
         }
     }
+    /**
+     * Called each frame from MyGame.update() to advance growth on all ghost crops.
+    */
     public void updateAllGhostCrops() {
         for(List<Crop> list : ghostCrops.values())
             for(Crop c : list)
                 c.update();
     }
+    /**
+     * Retrieves the color name assigned to a ghost.
+     *
+     * @param id The UUID of the ghost.
+     * @return Color name, or "White" if not set.
+    */
     public String getColor(UUID id) {
         return ghostColors.getOrDefault(id, "White");
     }
-    /** toggle a ghost’s torch GameObject on/off */
+    /**
+     * Toggles a ghost’s torch GameObject and its positional light.
+     *
+     * @param id The UUID of the ghost.
+     * @param on True to enable torch.
+     */
     public void setGhostTorch(UUID id, boolean on) {
         GhostAvatar g = findAvatar(id);
         if (g != null) {
@@ -233,22 +322,18 @@ public class GhostManager {
         }
     }
     
-    /** call each frame from MyGame.update() */
+    /**
+     * Called each frame from MyGame.update() to position torch objects.
+     */
     public void updateAllGhostTorches() {
         for (GhostAvatar g : ghostAvs) {
             if (!g.isTorchOn()) continue;
             GameObject t = g.getTorchObject();
-            Vector3f fwd   = t.getWorldForwardVector().normalize();
-            Vector3f up    = t.getWorldUpVector().normalize();
+            Vector3f fwd = t.getWorldForwardVector().normalize();
+            Vector3f up = t.getWorldUpVector().normalize();
             Vector3f right = t.getWorldRightVector().normalize();
             Vector3f offset = fwd.mul(0.05f).add(up.mul(0.10f)).add(right.mul(0.05f));
             t.setLocalTranslation(new Matrix4f().translation(offset));
-
         }
     }
-    
-
-    
-    
-    
 }

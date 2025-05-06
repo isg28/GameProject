@@ -7,7 +7,7 @@ import tage.GameObject;
 /**
  * Handles dynamic management of terrain textures in the game.
  * 
- * @author
+ * @author Isabel Santoyo-Garcia
  */
 public class TerrainManager {
     private GameObject terrain;

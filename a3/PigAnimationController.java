@@ -10,6 +10,8 @@ import java.util.Random;
  * PigAnimationController manages the animation and movement behavior of a pig GameObject.
  * The pig walks for a duration, then stalls for a random period, sometimes playing a curious animation.
  * It avoids collisions with the house, market, and terrain borders. It adjusts its height to match terrain.
+ * 
+ * @author Isabel Santoyo-Garcia
  */
 public class PigAnimationController {
     private GameObject pig;
@@ -18,32 +20,33 @@ public class PigAnimationController {
     private Random random;
     private boolean enabled = true;
 
-    // Timing variables
     private float timer = 0f;
     private float walkDuration = 0f;
     private float stallDuration = 0f;
     private boolean isWalking = true;
 
-    // Movement parameters
     private float moveSpeed = 0.15f;
     private final float NORMAL_SPEED = 0.25f;
     private final float SLOW_SPEED = 0.15f;
     private Vector3f forwardDir;
 
-    // Animation names
     private static final String WALK_ANIMATION = "WALK";
     private static final String CURIOUS_ANIMATION = "CURIOUS";
 
-    // Collision parameters
     private float blockRadius = 1.0f;
     private float minX = -12f, maxX = 12f, minZ = -12f, maxZ = 12f;
 
+    /**
+     * Constructs a PigAnimationController for the provided pig GameObject.
+     *
+     * @param pig  the GameObject representing the pig
+     * @param game the MyGame instance for world context
+    */
     public PigAnimationController(GameObject pig, MyGame game) {
         this.pig = pig;
         this.game = game;
         this.random = new Random();
 
-        // Get the animated shape and load animations
         this.animatedShape = (AnimatedShape) pig.getShape();
         try {
             animatedShape.loadAnimation(WALK_ANIMATION, "pigwalk.rka");
@@ -53,16 +56,21 @@ public class PigAnimationController {
             throw e;
         }
 
-        // Start with walk animation
         animatedShape.playAnimation(WALK_ANIMATION, 0.4f, AnimatedShape.EndType.LOOP, 0);
 
         updateForwardDirection();
     }
-
+    /**
+     * Enables or disables the pig controller’s update logic.
+     *
+     * @param enabled true to allow movement and animation updates
+     */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
-
+    /**
+     * Chooses a new random forward direction and rotates the pig accordingly.
+     */
     private void updateForwardDirection() {
         float angle = (float) (random.nextFloat() * 2 * java.lang.Math.PI);
         forwardDir = new Vector3f((float) java.lang.Math.cos(angle), 0, (float) java.lang.Math.sin(angle)).normalize();
@@ -71,7 +79,12 @@ public class PigAnimationController {
         pig.setLocalRotation(rotation);
         System.out.println("Pig rotation updated to face direction: " + forwardDir);
     }
-
+    /**
+     * Checks whether a candidate move location is valid (within bounds and not colliding).
+     *
+     * @param newLoc the proposed new world location
+     * @return true if movement is allowed
+     */
     private boolean isValidMove(Vector3f newLoc) {
         if (game.getHome() != null && newLoc.distance(game.getHome().getWorldLocation()) < blockRadius) {
             return false;
@@ -84,7 +97,13 @@ public class PigAnimationController {
         }
         return true;
     }
-
+    /**
+     * Called every frame to advance the pig’s behavior and animation.
+     * Alternates between walking phases and stalls, handles terrain height,
+     * collision avoidance, and random animation switches.
+     *
+     * @param deltaTimeMs elapsed time since last update in milliseconds
+     */
     public void update(float deltaTimeMs) {
         if (!enabled) return;
 

@@ -18,7 +18,7 @@ import java.util.Map;
  * <p>This class is also responsible for broadcasting skybox changes to other clients
  * in a multiplayer game using {@link MyGame#getProtocolClient()}.</p>
  *
- * @author 
+ * @author Isabel Santoyo-Garcia
  */
 public class SkyboxManager {
     private final String[] skyboxes = {
@@ -26,7 +26,7 @@ public class SkyboxManager {
         "eveningOne", "eveningTwo", "sunset", "night"
     };
 
-    private final long interval = 30000; // 30 secs WILL CHANGE LATER
+    private final long interval = 50000; // 50 secs
     private long lastSwitchTime = System.currentTimeMillis();
     private boolean isCycling = true;
     private int currentIndex = 0;
@@ -72,7 +72,6 @@ public class SkyboxManager {
             lastSwitchTime = System.currentTimeMillis();
         }
     }
-    // When the "night" skybox is reached, automatic cycling stops.
     private void advanceSkybox() {
         if (currentIndex < skyboxes.length - 1) {
             currentIndex++;
@@ -104,7 +103,7 @@ public class SkyboxManager {
      * @param index The index of the skybox to load.
     */
     private void loadAndSetSkybox(int index) {
-        String name = skyboxes[index];  // get current skybox name
+        String name = skyboxes[index];  
     
         int skyboxTex = skyboxTextures.get(name);
         sceneGraph.setActiveSkyBoxTexture(skyboxTex);
@@ -112,9 +111,8 @@ public class SkyboxManager {
         sceneGraph.getSkyBoxObject().getRenderStates().setTiling(1);
         sceneGraph.getSkyBoxObject().getRenderStates().setTileFactor(4);
     
-        // Sync terrain to match the skybox
         if (terrainManager != null) {
-            terrainManager.setTerrainTexture(name);  // pass matching key
+            terrainManager.setTerrainTexture(name);  
         }
     
         System.out.println("[SkyboxManager] Switched to: " + name);

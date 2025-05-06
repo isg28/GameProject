@@ -7,7 +7,7 @@ import tage.GameObject;
 import org.joml.*;
 
 /**
- * TurnAction handles rotation controls for the player's dolphin. 
+ * TurnAction handles rotation controls for the player's avatar. 
  * <p>
  * It enables:
  * <ul>
@@ -35,7 +35,7 @@ public class TurnAction extends AbstractInputAction
     }
 
     /**
-     * Handles the rotation of dolphin based on input events.
+     * Handles the rotation of avatar based on input events.
      * Supports yaw, pitch, and roll using keyboard keys and gamepad input.
      *
      * @param time The time elapsed since the last update.
@@ -103,8 +103,8 @@ public class TurnAction extends AbstractInputAction
     }
 
     /**
-     * Rotates the dolphin locally (Yaw).
-     * - Rotates around the Dolphin's local Y-axis
+     * Rotates the avatar locally (Yaw).
+     * - Rotates around the avatar's local Y-axis
      *  
      * @param angle The rotation angle.
      */
@@ -122,7 +122,7 @@ public class TurnAction extends AbstractInputAction
     } 
     
     /**
-     * Rotates the dolphin globally (Yaw).
+     * Rotates the avatar globally (Yaw).
      * - Rotates around the global Y-axis (0,1,0).
      */
     public void yawDolphinGlobal(float angle) {
@@ -139,7 +139,7 @@ public class TurnAction extends AbstractInputAction
     }
     
     /**
-     * Tilts the dolphin up or down (Pitch).
+     * Tilts the avatar up or down (Pitch).
      *
      * @param angle The rotation angle.
      */
@@ -158,7 +158,7 @@ public class TurnAction extends AbstractInputAction
     }
     
     /**
-     * Rolls the dolphin sideways.
+     * Rolls the avatar sideways.
      *
      * @param angle The rotation angle.
      */

@@ -8,12 +8,27 @@ import tage.ai.behaviortrees.BTAction;
 import tage.ai.behaviortrees.BTStatus;
 import tage.nodeControllers.OrbitAroundController;
 
+/**
+ * BeeFlyToAvatar is a behavior-tree action that moves a bee NPC toward the player's avatar
+ * until it reaches an attack distance, at which point it triggers an attack packet and
+ * optionally re-enables orbit behavior.
+ * <p>
+ * This action is used by the NPCcontroller to implement bee AI pursual behavior in the game.
+ * @author Isabel Santoyo-Garcia
+ */
+
 public class BeeFlyToAvatar extends BTAction {
     private NPCcontroller npcCtrl;
     private NPC npc;
     private float speed;
-    private static final float ATTACK_DISTANCE = 0.08f; // Based on log distance 0.07356197
-
+    private static final float ATTACK_DISTANCE = 0.08f; 
+    /**
+     * Creates a new BeeFlyToAvatar action.
+     *
+     * @param controller the NPCcontroller orchestrating AI behaviors
+     * @param npc the NPC instance representing the bee
+     * @param speed horizontal flight speed (units/second)
+     */
     public BeeFlyToAvatar(NPCcontroller controller, NPC npc, float speed) {
         super();
         this.npcCtrl = controller;
@@ -23,9 +38,14 @@ public class BeeFlyToAvatar extends BTAction {
 
     @Override
     protected void onInitialize() {
-        // No initialization needed
     }
-
+    /**
+     * Updates the bee's position each frame. If within attack distance, sends an attack packet,
+     * stops pursuit, and returns success. Otherwise, moves the bee toward the avatar and returns running.
+     *
+     * @param elapsedTime the time elapsed since the last update, in milliseconds
+     * @return BH_SUCCESS if attack completed (or not pursuing), BH_RUNNING while flying
+     */
     @Override
     protected BTStatus update(float elapsedTime) {
         if (!npcCtrl.isPursuingAvatar()) {
@@ -67,7 +87,6 @@ public class BeeFlyToAvatar extends BTAction {
                 oc.enable();
             }
             return BTStatus.BH_SUCCESS;
-            // --- END attack branch replacement ---
         }
 
         Vector3f direction = avatarPos.sub(beePos).normalize();

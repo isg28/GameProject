@@ -22,7 +22,7 @@ import tage.networking.client.GameConnectionClient;
  * and bee attacks, and performs the appropriate client-side actions.
  * </p>
  *
- * @author YourName
+ * @author Isabel Santoyo-Garcia
  */
 public class ProtocolClient extends GameConnectionClient {
     private MyGame game;
@@ -56,7 +56,8 @@ public class ProtocolClient extends GameConnectionClient {
     }
 
     /**
-     * Handles incoming messages from the server.
+     * Handles incoming messages from the server. Actions include: create, move, bye
+     * skybox, rotate, water, plant, harvest, grow, torch, and beeAttack
      *
      * @param message The message received from the server.
      */
@@ -82,6 +83,11 @@ public class ProtocolClient extends GameConnectionClient {
                     return;
                 }
                 UUID newClientID = UUID.fromString(msgTokens[1]);
+                // Check if ghost avatar already exists
+                if (ghostManager.getGhostAvatar(newClientID) != null) {
+                    System.out.println("[ProtocolClient] Ghost avatar already exists for client ID: " + newClientID + ", ignoring create message");
+                    return;
+                }
                 try {
                     float x = Float.parseFloat(msgTokens[2]);
                     float y = Float.parseFloat(msgTokens[3]);
@@ -100,7 +106,8 @@ public class ProtocolClient extends GameConnectionClient {
                 } catch (NumberFormatException e) {
                     System.out.println("[ProtocolClient] ERROR: Failed to parse create position values: " + msg);
                 }
-                break;
+            break;
+
 
             case "move":
                 if (msgTokens.length < 5) {
@@ -359,12 +366,24 @@ public class ProtocolClient extends GameConnectionClient {
     public UUID getClientId() {
         return id;
     }
-
+    /**
+     * Sends a planting action with crop ID and type.
+     *
+     * @param pos    planting position
+     * @param cropId UUID of the new crop
+     * @param type   crop type string
+     * @throws IOException on send failure
+     */
     public void sendPlantMessage(Vector3f pos, String cropId, String type) throws IOException {
         String message = "plant," + id + "," + pos.x + "," + pos.y + "," + pos.z + "," + cropId + "," + type;
         sendPacket(message);
     }
-
+    /**
+     * Sends a harvest action for the given crop UUID.
+     *
+     * @param cropId UUID of the harvested crop
+     * @throws IOException on send failure
+     */
     public void sendHarvestMessage(String cropId) throws IOException {
         String message = "harvest," + id + "," + cropId;
         sendPacket(message);
@@ -381,6 +400,14 @@ public class ProtocolClient extends GameConnectionClient {
                 type);
         sendPacket(msg);
     }
+        /**
+     * Sends a "beeAttack" command to a specific client.
+     *
+     * @param target UUID of the target client
+     * @param dx     X component of the impulse
+     * @param dy     Y component of the impulse
+     * @param dz     Z component of the impulse
+     */
     public void sendBeeAttack(UUID target, float dx, float dy, float dz) {
         try {
             String m = String.format("beeAttack,%s,%.3f,%.3f,%.3f",
@@ -390,6 +417,11 @@ public class ProtocolClient extends GameConnectionClient {
             e.printStackTrace();
         }
     }
+        /**
+     * Sends a torch toggle update for this client's avatar.
+     *
+     * @param on true to enable torch, false to disable
+     */
     public void sendTorchMessage(boolean on) {
         try {
             sendPacket("torch," + id + "," + (on ? "1" : "0"));

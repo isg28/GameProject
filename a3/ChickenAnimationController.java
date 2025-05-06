@@ -11,34 +11,31 @@ import java.util.Random;
  * The chicken walks for 30 seconds to cover longer distances, then stalls for a random
  * duration (1-3 seconds). During some stalls (30% chance), it plays a curious animation.
  * The controller ensures the chicken avoids collisions with the market, house, and terrain
- * borders, and adjusts its height to the terrain. It uses its own timer for state transitions.
+ * borders, and adjusts its height to the terrain. 
+ * 
+ * @author Isabel Santoyo-Garcia
  */
 public class ChickenAnimationController {
     private GameObject chicken;
     private AnimatedShape animatedShape;
     private MyGame game;
     private Random random;
-    private boolean enabled = true; // Controller enabled state
+    private boolean enabled = true; 
     
-    // Timing variables
-    private float timer = 0f; // Custom timer in seconds
-    private float walkDuration = 0f; // Walk for 5 seconds
-    private float stallDuration = 0f; // Current stall duration
-    private boolean isWalking = true; // Current state (walking or stalling)
-    
-    // Movement parameters
-    private float moveSpeed = 0.2f; // Increased temporarily to test movement (was 0.1f)
+    private float timer = 0f; 
+    private float walkDuration = 0f; 
+    private float stallDuration = 0f; 
+    private boolean isWalking = true; 
+    private float moveSpeed = 0.2f; 
     private final float NORMAL_SPEED = 0.5f;
     private final float SLOW_SPEED = 0.2f;
-    private Vector3f forwardDir; // Current forward direction
+    private Vector3f forwardDir; 
     
-    // Animation names
     private static final String WALK_ANIMATION = "WALK";
     private static final String CURIOUS_ANIMATION = "CURIOUS";
     
-    // Collision parameters
-    private float blockRadius = 1.0f; // Radius to avoid house/market
-    private float minX = -12f, maxX = 12f, minZ = -12f, maxZ = 12f; // Terrain bounds
+    private float blockRadius = 1.0f; 
+    private float minX = -12f, maxX = 12f, minZ = -12f, maxZ = 12f; 
 
     /**
      * Constructor initializes the controller with the chicken GameObject and game instance.
@@ -50,7 +47,6 @@ public class ChickenAnimationController {
         this.game = game;
         this.random = new Random();
         
-        // Get the animated shape and load animations
         this.animatedShape = (AnimatedShape) chicken.getShape();
         try {
             animatedShape.loadAnimation(WALK_ANIMATION, "chickenwalk.rka");
@@ -60,10 +56,8 @@ public class ChickenAnimationController {
             throw e;
         }
         
-        // Start with walking animation
         animatedShape.playAnimation(WALK_ANIMATION, 0.4f, AnimatedShape.EndType.LOOP, 0);
         
-        // Initialize forward direction (random to start)
         updateForwardDirection();
     }
 
@@ -79,11 +73,10 @@ public class ChickenAnimationController {
      * Updates the forward direction to a new random direction and rotates the chicken.
      */
     private void updateForwardDirection() {
-        float angle = (float) (random.nextFloat() * 2 * java.lang.Math.PI); // Random angle in radians
+        float angle = (float) (random.nextFloat() * 2 * java.lang.Math.PI); 
         forwardDir = new Vector3f((float) java.lang.Math.cos(angle), 0, (float) java.lang.Math.sin(angle)).normalize();
         
-        // Update chicken's rotation to face the new direction
-        Matrix4f rotation = new Matrix4f().rotationY((float) (-angle + java.lang.Math.PI / 2)); // Adjust for model orientation
+        Matrix4f rotation = new Matrix4f().rotationY((float) (-angle + java.lang.Math.PI / 2)); 
         chicken.setLocalRotation(rotation);
         System.out.println("Chicken rotation updated to face direction: " + forwardDir);
     }
@@ -94,7 +87,6 @@ public class ChickenAnimationController {
      * @return True if the location is valid, false otherwise.
      */
     private boolean isValidMove(Vector3f newLoc) {
-        // Check collision with house
         if (game.getHome() != null) {
             float distanceToHome = newLoc.distance(game.getHome().getWorldLocation());
             if (distanceToHome < blockRadius) {
@@ -103,7 +95,6 @@ public class ChickenAnimationController {
             }
         }
         
-        // Check collision with market
         if (game.getMarket() != null) {
             float distanceToMarket = newLoc.distance(game.getMarket().getWorldLocation());
             if (distanceToMarket < blockRadius) {
@@ -112,7 +103,6 @@ public class ChickenAnimationController {
             }
         }
         
-        // Check terrain boundaries
         if (newLoc.x() < minX || newLoc.x() > maxX || newLoc.z() < minZ || newLoc.z() > maxZ) {
             System.out.println("Invalid move: Outside terrain bounds (x: " + newLoc.x() + ", z: " + newLoc.z() + ")");
             return false;
@@ -129,17 +119,15 @@ public class ChickenAnimationController {
         if (!enabled) return;
     
         try {
-            float deltaTimeSec = deltaTimeMs / 1000f; // Convert to seconds
+            float deltaTimeSec = deltaTimeMs / 1000f;
             timer += deltaTimeSec;
-    
             animatedShape.updateAnimation();
     
             if (isWalking) {
                 if (timer >= walkDuration) {
-                    // Done walking, start stalling
                     isWalking = false;
                     timer = 0f;
-                    stallDuration = 1f + random.nextFloat() * 2f; // 1-3 sec stall
+                    stallDuration = 1f + random.nextFloat() * 2f; 
     
                     animatedShape.stopAnimation();
                     if (random.nextFloat() < 0.3f) {
@@ -149,7 +137,6 @@ public class ChickenAnimationController {
                         System.out.println("Stalling without curious animation");
                     }
                 } else {
-                    // Move the chicken
                     Vector3f currentLoc = chicken.getWorldLocation();
                     Vector3f moveVec = new Vector3f(forwardDir).mul(moveSpeed * deltaTimeSec);
                     Vector3f newLoc = new Vector3f(currentLoc).add(moveVec);
@@ -174,19 +161,15 @@ public class ChickenAnimationController {
                     }
                 }
             } else {
-                // Stalling
                 if (timer >= stallDuration) {
-                    // Start walking again
                     isWalking = true;
                     timer = 0f;
     
                     animatedShape.stopAnimation();
                     animatedShape.playAnimation(WALK_ANIMATION, 0.4f, AnimatedShape.EndType.LOOP, 0);
     
-                    // Randomize walk duration (1-5 seconds)
                     walkDuration = 1f + random.nextFloat() * 4f;
     
-                    // Randomize movement speed (slow or normal)
                     if (random.nextBoolean()) {
                         moveSpeed = NORMAL_SPEED;
                         System.out.println("Walking at NORMAL speed (" + moveSpeed + ")");
@@ -194,7 +177,6 @@ public class ChickenAnimationController {
                         moveSpeed = SLOW_SPEED;
                         System.out.println("Walking at SLOW speed (" + moveSpeed + ")");
                     }
-    
                     updateForwardDirection();
                 }
             }

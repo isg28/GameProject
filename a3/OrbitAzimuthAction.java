@@ -5,10 +5,10 @@ import tage.input.action.AbstractInputAction;
 
 /**
  * OrbitAzimuthAction controls the horizontal orbit rotation (azimuth)
- * of the camera around the dolphin.
+ * of the camera around the avatar.
  * <p>
  * This action allows the player to rotate the camera left or right around
- * the dolphin using the keyboard input. 
+ * the avatar using the keyboard input. 
  *
  * Usage:
  * <ul>

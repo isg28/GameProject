@@ -12,13 +12,14 @@ import tage.input.action.AbstractInputAction;
 
 /**
  * CameraOrbit3D provides an orbiting camera system that allows the player 
- * to rotate, tilt, and zoom around the dolphin.
+ * to rotate, tilt, and zoom around the avatar.
  * <p>
- * The camera uses azimuth, elevation, & radius to position itself relative to the dolphin and updates dynamically based on user input.
+ * The camera uses azimuth, elevation, & radius to position itself relative to the avatar and updates dynamically based on user input.
  *
  * @author Isabel Santoyo-Garcia
  * 
  **/
+
 
 public class CameraOrbit3D {
     private Engine engine;
@@ -33,7 +34,7 @@ public class CameraOrbit3D {
      * and setting default values for azimuth, elevation, and distance.
      *
      * @param cam The camera to be controlled.
-     * @param av The target, dolphin, the camera orbits around.
+     * @param av The target, avatar, the camera orbits around.
      * @param e The game engine instance.
      */
     public CameraOrbit3D(Camera cam, GameObject av, Engine e) {
@@ -48,7 +49,7 @@ public class CameraOrbit3D {
 
     /**
      * Updates the camera position based on the current azimuth, elevation, and distance. 
-     * And uses it to properly position the camera relative to the dolphin.
+     * And uses it to properly position the camera relative to the avatar.
      */
     public void updateCameraPosition() {
         double theta = Math.toRadians(cameraAzimuth); 

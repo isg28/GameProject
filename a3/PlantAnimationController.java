@@ -5,9 +5,10 @@ import tage.shapes.AnimatedShape;
 import java.util.Random;
 
 /**
- * PlantAnimationController manages the wind-like animation of a planted crop.
+ * PlantAnimationController manages the wind like animation of a planted crop.
  * After being planted, the plant will randomly flap its leaves at random intervals,
  * creating a natural effect as if wind occasionally moves the plant.
+   @author Isabel Santoyo-Garcia
  */
 public class PlantAnimationController {
     private GameObject plant;
@@ -15,13 +16,11 @@ public class PlantAnimationController {
     private Random random;
     private boolean enabled = true;
 
-    // Timing
     private float timer = 0f;
-    private float nextFlapTime = 0f; // How long until next flap
+    private float nextFlapTime = 0f; 
 
-    // Animation settings
-    private static final String FLAP_ANIMATION = "plantmove"; // your "plantmove.rka"
-    private static final float FLAP_SPEED = 0.5f; // Adjust if needed
+    private static final String FLAP_ANIMATION = "plantmove"; 
+    private static final float FLAP_SPEED = 0.5f; 
 
     /**
      * Creates a new controller for a plant GameObject.
@@ -37,7 +36,6 @@ public class PlantAnimationController {
 
         this.animatedShape = (AnimatedShape) plant.getShape();
 
-        // Try loading the animation
         try {
             animatedShape.loadAnimation(FLAP_ANIMATION, "plantmove.rka");
         } catch (RuntimeException e) {
@@ -45,7 +43,6 @@ public class PlantAnimationController {
             throw e;
         }
 
-        // Initialize first random time to flap
         scheduleNextFlap();
     }
 
@@ -74,9 +71,8 @@ public class PlantAnimationController {
         animatedShape.updateAnimation();
 
         if (timer >= nextFlapTime) {
-            // Play the flap animation once
             animatedShape.playAnimation(FLAP_ANIMATION, FLAP_SPEED, AnimatedShape.EndType.STOP, 0);
-            scheduleNextFlap(); // Set a new random time for next flap
+            scheduleNextFlap();
         }
     }
 }

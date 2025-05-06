@@ -13,7 +13,7 @@ import java.util.Arrays;
 import org.joml.*;
 
 /**
- * FwdAction handles the forward and backward movement of the dolphin.
+ * FwdAction handles the forward and backward movement of the avatar.
  * It listens for user input (keyboard, gamepad buttons, or joystick movements)
  * and moves the avatar accordingly.
  * <p>
