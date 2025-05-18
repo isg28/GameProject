@@ -2,7 +2,16 @@
 
 A multiplayer 3D farming simulation game developed as a final project for CSC 165 at Sacramento State. Players farm by day, fend off roaming animals and bee attacks, and interact in real-time through networking.
 
+<p align="center">
+  <img src="assets/readme/Multiplayer.png" alt="Multiplayer View" width="80%" />
+</p>
+
 ## Overview
+
+This project was developed using **Java** and a collection of open-source tools and libraries. Our main development platform was **TAGE** (Another Tiny Game Engine), a stripped-down game engine built and maintained at Sacramento State.
+
+We also utilized tools such as **Blender** for creating 3D models, keyframing, and animations, and **Terragen** for terrain and environmental texture generation. Supporting libraries and frameworks included **OpenGL** (graphics), **OpenAL** (audio), **JOML** (math/linear algebra), **JInput** (input handling), and **JBullet** (physics). 
+
 **Genre:** Multiplayer Simulation  
 **Theme:** Farming Adventure  
 **Dimensionality:** 3D with multi-viewport support
@@ -18,11 +27,19 @@ Players start with 10 coins and grow their farm by buying seeds, planting crops,
 
 ## Screenshots
 **(1)** Player selects their rabbit color; selection is broadcast to all ghost avatars.
+<p align="center">
+  <img src="assets/readme/SelectRabbitColor.png" alt="Rabbit Selection Screen" width="70%" />
+</p>
 
 **(2)** In-game view with NPC animals roaming. Bee chases when nearby. HUD shows objectives, status, inventory, and coin count.
+<p align="center">
+  <img src="assets/readme/Spawn.png" alt="Spawn View with Animals" width="70%" />
+</p>
 
 **(3)** A grown plant (wheat) after watering. Additional buildings visible.
-
+<p align="center">
+  <img src="assets/readme/Watering.png" alt="Watering Crops View" width="70%" />
+</p>
 
 ## Keyboard & Gamepad Controls
 
@@ -173,4 +190,9 @@ Batch files were created to simplify startup.
   - `beebuzz.wav`, `chickennoise.wav`, `fireSound.wav`, `pigoink.wav`, `water.wav` — [Pixabay License](https://pixabay.com/service/license-summary/)
 
 ## Additional Materials
-See `Readme.pdf` for further visuals, breakdowns, and development notes.
+For a more detailed gameplay, further visuals, and breakdown, refer to `readme - player guide, HW3.pdf`.
+
+## Gameplay Video Demos
+- **Multiplayer Edition (Keyboard):** [Watch Here](https://youtu.be/dU4VA2lTTHA?si=52uynSYFEpV8RALz)
+- **Single Player POV (Keyboard):** [Watch Here](https://www.youtube.com/watch?v=1U8hqmJMSOs)
+- **Single Player POV (Gamepad Edition):** [Watch Here](https://www.youtube.com/watch?v=EE1yK9EfayI)
